@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch checksum-pinned SDK and fonts into project-local directories."""
+"""Fetch checksum-pinned SDK, fonts, and reader sources locally."""
 import argparse
 import hashlib
 import json
@@ -33,8 +33,9 @@ def fetch(spec):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--fonts-only", action="store_true")
+    parser.add_argument("--host", action="store_true", help="Fonts and reader sources, without the device SDK")
     args = parser.parse_args()
-    if not args.fonts_only:
+    if not args.fonts_only and not args.host:
         archive = fetch(MANIFEST["sdk"])
         sdk_parent = ROOT / "third_party/sdk"
         sdk_parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +53,26 @@ def main():
             (fonts / face).write_bytes(data)
         license_data = tar.extractfile("dejavu-fonts-ttf-2.37/LICENSE").read()
         (fonts / "LICENSE-DejaVu.txt").write_bytes(license_data)
+    if not args.fonts_only:
+        for name, spec in MANIFEST["sources"].items():
+            archive = fetch(spec)
+            destination = ROOT / "third_party/src" / name
+            extract = not destination.exists()
+            if extract:
+                destination.mkdir(parents=True)
+            with tarfile.open(archive) as tar:
+                for member in tar.getmembers():
+                    relative = Path(member.name).relative_to(spec["prefix"])
+                    if ".." in relative.parts or member.issym() or member.islnk():
+                        raise SystemExit(f"Unsafe source archive member: {member.name}")
+                    if extract:
+                        member.name = str(relative)
+                        tar.extract(member, destination, filter="data")
+                    elif member.isfile():
+                        target = destination / relative
+                        if not target.is_file() or target.read_bytes() != tar.extractfile(member).read():
+                            raise SystemExit(f"Pinned source differs or extraction is incomplete: {target}. Restore/re-extract it before building.")
+            print(f"Verified extracted {name} sources")
 
 
 if __name__ == "__main__":

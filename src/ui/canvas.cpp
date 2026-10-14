@@ -7,11 +7,12 @@ namespace epub {
 const std::array<Palette, 6> palettes{{
     {"dark", 0x101419, 0xd8dce0, 0x92b6b0, 0x444f59, 0x202930},
     {"warm", 0x272019, 0xe5d2b3, 0xc8a16c, 0x655240, 0x3b3025},
-    {"amber", 0x1b1006, 0xeda342, 0xffb851, 0x6e4824, 0x352313},
+    // Extra red bias compensates for the RG280V panel's cool appearance.
+    {"amber", 0x1b1006, 0xed9038, 0xffa744, 0x714322, 0x352313},
     {"matrix", 0x07140b, 0x8dcc96, 0xa1eab0, 0x2d5939, 0x142b1b},
     {"light", 0xeee9dd, 0x292d30, 0x4b746e, 0xc0bbaa, 0xdbd5c7},
-    // Warm-paper cream inspired by a ~4000K reading light, with dark ink.
-    {"warm2", 0xffddb0, 0x35271d, 0x9b6333, 0xc39a6a, 0xf1cfa3}
+    // Warmer paper and matching panel, with the same dark-brown ink.
+    {"warm2", 0xffd0a0, 0x35271d, 0x9b6333, 0xc39a6a, 0xf1c396}
 }};
 
 // Original 5x7 diagnostic glyphs, columns top-bit first. Lowercase folds to

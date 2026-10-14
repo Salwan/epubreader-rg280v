@@ -1,6 +1,6 @@
 # License
 
-EPUB Reader for RG280V application code and original diagnostic assets are
+EPUB Reader for RG280V application code and original project assets are
 licensed under the GNU General Public License, version 2 or (at your option)
 any later version (SPDX: `GPL-2.0-or-later`).
 

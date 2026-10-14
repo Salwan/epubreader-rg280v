@@ -1,4 +1,4 @@
-# Milestone 1 dependencies
+# Dependencies through Milestone 2
 
 `manifest.json` pins the entire target SDK archive, so its headers and binary
 libraries cannot vary independently. The cross-build uses only this sysroot;
@@ -46,9 +46,42 @@ The original bitmap glyphs, icon, and tone are covered by the application licens
 | tslib | 1.22, https://github.com/libts/tslib/tree/1.22 | LGPL-2.1+ (library only) |
 | libstdc++, libgcc | GCC 11.1.0, https://gcc.gnu.org/releases.html | GPL-3.0+ with GCC Runtime Library Exception |
 | DejaVu Serif | 2.37, https://github.com/dejavu-fonts/dejavu-fonts/releases/tag/version_2_37 | Bitstream Vera; DejaVu changes public domain |
+| KOReader CRengine | `ab1981c22e4e67cf9d98be3c301736941d2d271c`, https://github.com/koreader/crengine | GPL-2.0 (selected) |
+| CRengine Qt image scaler | Included in the pinned engine archive | GPL-2.0 (selected), BSD/Imlib2 notices |
+| xxHash library | 0.8.3, https://github.com/Cyan4973/xxHash/tree/v0.8.3 | BSD-2-Clause |
+| IJG libjpeg | 9d, https://www.ijg.org/files/jpegsrc.v9d.tar.gz | IJG |
 
 FreeType notice: portions of this software are copyright © 2020 The FreeType
 Project (www.freetype.org). All rights reserved.
+
+This software is based in part on the work of the Independent JPEG Group.
+
+## Headless reader build
+
+The CRengine and xxHash archives are checksum-pinned in `manifest.json` and
+extracted under ignored `third_party/src/`. Bootstrap verifies extracted source
+files against those archives on subsequent runs. `cmake/CRengine.cmake` compiles
+the engine alone, statically linked into the application; there is no Qt GUI.
+FreeType, zlib, PNG, and JPEG come from the pinned target SDK. All optional
+features are explicit: no HarfBuzz, FriBidi, Fontconfig, libunibreak, SVG, WebP,
+GIF, MathML, Markdown, external regex library, or Zstd. English text uses the
+engine's built-in line breaking. Embedded font overrides are disabled so the
+bundled DejaVu family and the selected size are authoritative.
+
+Two generated translation-unit adaptations leave the extracted sources intact:
+
+- Foreground text uses `LTEXT_COLOR_CURRENT`, so drawing uses the active theme
+  without invalidating pagination. CSS backgrounds are made transparent by the
+  reader stylesheet; raster illustrations retain their colors.
+- Standard `JCS_RGB` JPEG output is expanded to RGB888 in place, replacing the
+  upstream assumption that libjpeg-turbo's `JCS_EXT_BGRX` is available. The same
+  code is built and tested on host and device. `stdint.h` is included explicitly
+  for the engine's SHA1 implementation on the older uClibc headers.
+
+The build adaptations are completely specified in `cmake/CRengine.cmake` and
+`cmake/CRengineJPEG.cmake`; corresponding cache-version inputs are in the reader
+adapter. CRengine, scaler, xxHash, and JPEG notices are checked in and packaged.
+`scripts/fetch-notices.py --reader-only` regenerates their provenance records.
 
 Shared libraries remain replaceable in an extracted/repacked OPK. Retain the
 repository/source revisions and notices when distributing derived packages.

@@ -48,7 +48,11 @@ void saveState(const std::string& directory, const State& s) {
     out << "version 1\ntheme " << s.theme << "\nfont " << s.font << "\nvolume " << s.volume
         << "\nmixer " << std::quoted(s.mixer) << "\nrange " << s.minimum << ' ' << s.maximum
         << "\nraw " << s.rawLeft << ' ' << s.rawRight << "\nswitch " << s.switchLeft << ' ' << s.switchRight << '\n';
-    const std::string data = out.str(), path = directory + "/state.ini", temp = path + ".tmp";
+    atomicWrite(directory, "state.ini", out.str());
+}
+void atomicWrite(const std::string& directory, const std::string& filename, const std::string& data) {
+    ensureDirectory(directory);
+    const std::string path = directory + '/' + filename, temp = path + ".tmp";
     int fd = ::open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (fd < 0) throw std::runtime_error("Cannot open state temporary file: " + std::string(std::strerror(errno)));
     size_t offset = 0;

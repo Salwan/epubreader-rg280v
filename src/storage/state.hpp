@@ -2,6 +2,7 @@
 #include <string>
 
 namespace epub {
+void atomicWrite(const std::string& directory, const std::string& filename, const std::string& data);
 struct State {
     int theme = 0, font = 1, volume = 50;
     std::string mixer;

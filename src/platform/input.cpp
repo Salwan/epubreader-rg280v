@@ -25,6 +25,7 @@ const char* buttonName(Button b) {
 bool Input::held(Button b) const { return b != Button::Unknown && held_[static_cast<size_t>(b)]; }
 void Input::reset() { held_.fill(false); repeating_ = Button::Unknown; longFired_ = suppressA_ = false; }
 void Input::consumeA() { suppressA_ = true; }
+void Input::consumeRepeat() { repeating_ = Button::Unknown; }
 std::string Input::heldNames() const {
     std::string s;
     for (size_t i = 0; i < held_.size(); ++i) if (held_[i]) { if (!s.empty()) s += ' '; s += buttonName(static_cast<Button>(i)); }

@@ -20,6 +20,7 @@ public:
     Action tick(uint32_t now);
     void reset();
     void consumeA();
+    void consumeRepeat();
     bool held(Button b) const;
     std::string heldNames() const;
 };

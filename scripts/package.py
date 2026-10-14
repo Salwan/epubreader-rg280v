@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage, audit, and deterministically package the pinned MIPS diagnostic."""
+"""Stage, audit, and deterministically package the pinned MIPS reader."""
 import argparse
 import hashlib
 import json
@@ -22,16 +22,19 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--build", type=Path, default=ROOT / "build/rg280v")
-    parser.add_argument("--output", type=Path, default=ROOT / "dist/epubreader-diagnostic-m1-0.1.1.opk")
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--diagnostic", action="store_true", help="Package the original platform diagnostic instead")
     args = parser.parse_args()
-    build, output = args.build.resolve(), args.output.resolve()
+    version = re.search(r"project\(epubreader VERSION ([\d.]+)", (ROOT / "CMakeLists.txt").read_text()).group(1)
+    package_name = f"epubreader-diagnostic-m1-{version}" if args.diagnostic else f"epubreader-m2-{version}"
+    build, output = args.build.resolve(), (args.output or ROOT / "dist" / (package_name + ".opk")).resolve()
     # Only generated, project-local staging/output directories may be modified.
     build.relative_to(ROOT); output.relative_to(ROOT)
     sdk = ROOT / "third_party/sdk/gcw0-toolchain"
     sysroot = sdk / "mipsel-gcw0-linux-uclibc/sysroot"
     readelf = sdk / "bin/mipsel-linux-readelf"
     strip = sdk / "bin/mipsel-linux-strip"
-    binary = build / "epubreader-diagnostic"
+    binary = build / ("epubreader-diagnostic" if args.diagnostic else "epubreader")
     header = subprocess.check_output([str(readelf), "-h", str(binary)], text=True)
     if not all(s in header for s in ("ELF32", "little endian", "mips32r2", "o32")):
         raise SystemExit("Refusing to package a non-MIPS32r2/o32 little-endian executable")
@@ -73,14 +76,22 @@ def main():
     (stage / "runtime-libraries.json").write_text(json.dumps({"schema": 1, "firmware_provided": sorted(firmware), "bundled": records}, indent=2, sort_keys=True) + "\n")
     # SDL dynamically loads ALSA by SONAME even when absent from DT_NEEDED;
     # libasound is an explicit application dependency, so the closure contains it.
-    shutil.copytree(ROOT / "assets", stage / "assets")
+    # Package the original fixtures explicitly. Personal EPUBs placed beside
+    # them for local testing are not distributable application resources.
+    shutil.copytree(ROOT / "assets", stage / "assets", ignore=shutil.ignore_patterns("books"))
+    (stage / "assets/books").mkdir()
+    for name in ("prose-epub2.epub", "prose-epub3.epub"):
+        shutil.copyfile(ROOT / "assets/books" / name, stage / "assets/books" / name)
     notices = ROOT / "third_party/notices"
     notice_lock = json.loads((notices / "sources.json").read_text())
     for name, spec in notice_lock.items():
         if digest(notices / name) != spec["sha256"]:
             raise SystemExit(f"License notice hash mismatch: {name}")
     shutil.copytree(notices, stage / "licenses")
-    for source, target in (("LICENSE.md", "LICENSE.md"), ("third_party/README.md", "licenses/DEPENDENCIES.md"), ("third_party/manifest.json", "dependencies.json"), ("docs/DEVICE-TEST-0.1.1.md", "DEVICE-TEST.txt"), ("packaging/epubreader-diagnostic.gcw0.desktop", "epubreader-diagnostic.gcw0.desktop"), ("packaging/launch.sh", "launch.sh"), ("packaging/epubreader.png", "epubreader.png")):
+    desktop = "epubreader-diagnostic.gcw0.desktop" if args.diagnostic else "epubreader.gcw0.desktop"
+    launcher = "launch.sh" if args.diagnostic else "launch-reader.sh"
+    checklist = "DEVICE-TEST-0.1.1.md" if args.diagnostic else "DEVICE-TEST-M2-0.2.1.md"
+    for source, target in (("LICENSE.md", "LICENSE.md"), ("third_party/README.md", "licenses/DEPENDENCIES.md"), ("third_party/manifest.json", "dependencies.json"), ("docs/" + checklist, "DEVICE-TEST.txt"), ("packaging/" + desktop, desktop), ("packaging/" + launcher, "launch.sh"), ("packaging/epubreader.png", "epubreader.png")):
         shutil.copyfile(ROOT / source, stage / target)
     for path in sorted(stage.rglob("*")) + [stage]:
         executable = path.is_dir() or path.name in ("launch.sh", binary.name)

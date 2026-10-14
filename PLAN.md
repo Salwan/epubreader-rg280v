@@ -102,10 +102,13 @@ Application
     └── Startup-resume state
 ```
 
-### 3.1 Thread ownership
+### 3.1 Execution ownership
 
 - **Main thread:** input, interface state, display, and shutdown.
 - **Reader worker:** EPUB loading, pagination, rendering, and all CRengine access.
+  Milestone 2 uses an isolated child process, started before SDL/audio threads,
+  because the engine has no reliable cancellation API. Nonblocking framed IPC
+  carries progress and completed page images; termination/reaping is bounded.
 - **Audio worker:** MP3 decoding and track transitions.
 - **Audio callback:** bounded PCM consumption and mixing only.
 
@@ -185,7 +188,7 @@ Implement:
 - Title display with filename fallback.
 - Alphabetical ordering within unfinished and finished groups.
 - Progress percentage and bitmap finished checkmark.
-- Current theme and font preset display.
+- Current theme and read-only font preset display; font changes are made in the reader popup.
 - Highlighted selection and two-native-column list scrollbar.
 - Selection preservation when returning from a book or when list ordering changes.
 
@@ -196,7 +199,6 @@ Implement:
 | Left / Right | Move one visible list page |
 | Left / Right on a single-page list | Select first / last item |
 | A | Open selected book |
-| Y | Cycle small → medium → large |
 | L2 / R2 | Previous / next theme |
 | Select + Start | Save and exit |
 
@@ -226,6 +228,14 @@ Clamp page turns at the beginning and end of a book. Preserve the underlying rea
 - Select the first action by default.
 - Up/Down moves; A activates; B or X closes.
 - Provide actions to return to the books list and exit the application.
+- Include a **Font size** row between those actions. When highlighted, Left/Right
+  decreases/increases small → medium → large, clamping at the ends. A does not
+  alter this setting. Apply changes immediately while keeping the menu open and
+  the row highlighted; retain the authoritative text anchor through pagination
+  and save the confirmed preset/position. Other menu rows consume Left/Right
+  without turning pages. Font size cannot be changed from the books list.
+- Menu navigation, close, and exit remain responsive during pagination; ignore
+  additional font requests until the current reader job completes.
 
 ### 5.4 Jump slider
 
@@ -342,6 +352,15 @@ documented in `docs/BUILD.md`. The official 2022-09-22 GCW0 SDK is pinned in
 **Exit criteria:** OPK builds reproducibly on the host; its intended behavior is documented; user testing confirms launch on Adam, correct geometry, input mappings, and one volume adjustment per press. Any device-specific corrections feed into the next build.
 
 ### Milestone 2 — EPUB rendering vertical slice
+
+**Implementation status:** accepted on RG280V / Adam v2.1 with version `0.2.0`.
+All device checks performed by the user passed; malformed-book and prolonged
+reading checks are intentionally deferred to normal-use usability feedback.
+Version `0.2.1` warms amber/warm2 and implements the revised popup font-size
+control, based on the confirmed anchor-preserving in-book re-pagination. The
+annotated acceptance remains in `docs/DEVICE-TEST-M2.md`; focused follow-up is
+`docs/DEVICE-TEST-M2-0.2.1.md`, with host/build evidence in
+`docs/VERIFICATION-M2.md`. EPUB 2/3 specimen shortcuts remain slice test controls.
 
 **Deliverables:**
 

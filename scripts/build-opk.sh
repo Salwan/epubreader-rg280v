@@ -7,5 +7,5 @@ export LC_ALL=C
 python3 "$ROOT/scripts/bootstrap.py"
 BUILD="${1:-$ROOT/build/rg280v}"
 cmake -S "$ROOT" -B "$BUILD" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$ROOT/cmake/toolchains/rg280v.cmake" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build "$BUILD"
+cmake --build "$BUILD" --parallel "${JOBS:-4}"
 python3 "$ROOT/scripts/package.py" --build "$BUILD"

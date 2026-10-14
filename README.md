@@ -5,6 +5,31 @@ Would be awesome if I can read epub books on my RG280V.
 
 ## Implementation status
 
+**Milestone 2: accepted on RG280V / Adam v2.1 with version 0.2.0.**
+
+Version `0.2.1` incorporates the device feedback: redder amber foregrounds,
+warmer warm2 paper, and font-size adjustment in the reader popup menu. The user
+has deferred malformed-book and prolonged-session device checks to normal use.
+
+The reader loads and paginates EPUB 2/3 with headless CRengine, renders through
+the device-selected box-filtered path, supports three font presets and six
+themes, and saves/restores serialized text anchors. A cancellable reader worker
+keeps the interface responsive; document and neighboring-page caches are bounded.
+
+- Build: `bash scripts/build-opk.sh`
+- Artifact: `dist/epubreader-m2-0.2.1.opk`
+- [Updated controls and focused device follow-up](docs/DEVICE-TEST-M2-0.2.1.md)
+- [Accepted Milestone 2 checklist and device feedback](docs/DEVICE-TEST-M2.md)
+- [Milestone 2 host verification and artifact checksum](docs/VERIFICATION-M2.md)
+- [Build and host preview instructions](docs/BUILD.md)
+
+At launch, `$HOME/books/milestone2.epub` is opened if present; otherwise a bundled
+prose specimen is used. Up/Down switches between the EPUB 2/3 specimens outside
+the menu. X opens the popup; Down highlights **Font size**, and Left/Right adjusts
+small/medium/large while preserving the text anchor. B closes the menu, or
+saves/reopens when reading. Select+Start saves/exits. Each book retains its own
+text position across runs.
+
 **Milestone 1: accepted on RG280V / Adam v2.1; all device checklist items passed.**
 
 The diagnostic OPK exercises native display patterns, both aspect-correct font
@@ -13,7 +38,6 @@ Version `0.1.1` incorporates the device feedback: a two-native-row progress bar,
 warmer amber, and a warm light-background `warm2` palette. The selected reader
 path is 640×480 with horizontal 2:1 box filtering; UI bitmap text is 5×14 native.
 
-- Build: `bash scripts/build-opk.sh`
 - Artifact: `dist/epubreader-diagnostic-m1-0.1.1.opk`
 - [Build and host verification](docs/BUILD.md)
 - [Milestone 1 verification results and artifact checksum](docs/VERIFICATION.md)
@@ -69,7 +93,7 @@ Themes can be changed by pressing R2 and L2 buttons.
 
 Shows current active book font size (remembers last set): small, medium (default), large.
 
-Book rendering font size can be changed by toggled through presets by pressing Y button. This is the only place font size is changeable (in the books list) because they'll change how many pages books have.
+The books list displays the selected font size read-only. Font size is adjusted from the book reader's popup menu.
 
 Books are sorted alphabetically. Finished books are listed at the end. When the list overflows the screen, a scrollbar appears at the right and is 2 native framebuffer pixels wide.
 
@@ -89,7 +113,7 @@ The reading experience is focused with only these two components shown during re
 
 in-book hyperlinks are rendered but aren't clickable/interactable (minimalism is the point).
 
-Theme can be changed by pressing R2 and L2 buttons, but font-size is unchangeable from the book reading screen.
+Theme can be changed by pressing R2 and L2 buttons. Font size is changed from the popup menu while reading, preserving the original text anchor through re-pagination.
 
 * dpad left or L1 turns to the previous page.
 * dpad right or R1 turns to the next page.
@@ -103,6 +127,7 @@ Pressing X brings up the popup menu and book header panel:
 * move through menu with dpad up and down, select with A and escape with B (or by closing the menu with the X button).
 * Menu currently contains these actions:
     * back to book list (button)
+    * font size (small / medium / large): highlight with dpad up/down, then use left/right to decrease/increase the preset. Changes apply immediately, clamp at small/large, and keep the menu open with the same row selected. Returning to the original size restores the original page without anchor drift. A does not change this setting.
     * exit app (button)
 
 #### Embedded Music Player

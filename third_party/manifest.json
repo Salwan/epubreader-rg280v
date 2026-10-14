@@ -17,12 +17,34 @@
     "faces": ["DejaVuSerif.ttf", "DejaVuSerif-Bold.ttf", "DejaVuSerif-Italic.ttf", "DejaVuSerif-BoldItalic.ttf"],
     "license": "Bitstream Vera license; DejaVu changes public domain"
   },
+  "sources": {
+    "crengine": {
+      "revision": "ab1981c22e4e67cf9d98be3c301736941d2d271c",
+      "url": "https://codeload.github.com/koreader/crengine/tar.gz/ab1981c22e4e67cf9d98be3c301736941d2d271c",
+      "archive": "crengine-ab1981c22e4e67cf9d98be3c301736941d2d271c.tar.gz",
+      "sha256": "08a86a46a15c82f07e7f4c71f7a73b02c7ad0c6897fdafc64fd6f21827abc562",
+      "prefix": "crengine-ab1981c22e4e67cf9d98be3c301736941d2d271c",
+      "license": "GPL-2.0 (selected)",
+      "options": "Headless static library; FreeType, PNG, standard RGB JPEG, zlib, built-in English line breaking; dynamic foreground-color hook; all other optional features disabled"
+    },
+    "xxhash": {
+      "revision": "v0.8.3",
+      "url": "https://codeload.github.com/Cyan4973/xxHash/tar.gz/refs/tags/v0.8.3",
+      "archive": "xxhash-0.8.3.tar.gz",
+      "sha256": "aae608dfe8213dfd05d909a57718ef82f30722c392344583d3f39050c7f29a80",
+      "prefix": "xxHash-0.8.3",
+      "license": "BSD-2-Clause (library)"
+    }
+  },
   "dependencies": [
     {"name": "SDL", "revision": "OpenDingux/SDL 97557d6bd", "version": "1.2.16", "options": "SDK build: KMS/DRM, ALSA, no X11/fbcon/PulseAudio", "license": "LGPL-2.1-or-later"},
     {"name": "SDL_ttf", "revision": "libsdl-org/SDL_ttf 70b2940cc75e92aab02a67d2f827caf2836a2c74", "version": "2.0.11.1", "options": "SDK build against FreeType; no X11", "license": "Zlib"},
     {"name": "mpg123", "version": "1.25.15", "options": "SDK generic_fpu; application requests signed 16-bit PCM at negotiated SDL rate", "license": "LGPL-2.1"},
     {"name": "alsa-lib", "version": "1.2.5.1", "options": "SDK build; diagnostic observes playback controls, one startup restore", "license": "LGPL-2.1-or-later"},
-    {"name": "FreeType", "version": "2.10.4", "options": "SDK build", "license": "FTL or GPL-2.0-or-later"}
+    {"name": "FreeType", "version": "2.10.4", "options": "SDK build", "license": "FTL or GPL-2.0-or-later"},
+    {"name": "libjpeg", "version": "9d", "options": "SDK IJG libjpeg; standard RGB decoding", "license": "IJG"},
+    {"name": "libpng", "version": "1.6.37", "options": "SDK build", "license": "libpng-2.0"},
+    {"name": "zlib", "version": "1.2.11", "options": "SDK build; EPUB ZIP and engine document cache compression", "license": "Zlib"}
   ],
   "package": {"squashfs": "4.6.1", "compression": "gzip", "block_size": 131072, "source_date_epoch": 1663804800}
 }
