@@ -13,15 +13,25 @@ It has a strange chipset, but there are already many apps made for it using the 
 
 These apps are useful for reference and they work well on the RG280V:
 
-* [Commander file manager](https://github.com/glebm/rs97-commander), uses a nice native-resolution font
+* [Commander file manager](https://github.com/od-contrib/commander), uses a nice native-resolution font
 * [GMU Music Player](https://github.com/denis-n-kuznetsov/gmu), supports mp3 playback
 * PdfViewer, source downloaded in: `~/dev/opendingux.pdfviewer/pdfviewer.sourcecode.Hardyx/`
 
 ## App Design
 
-App drawing should look perfect on the weird RG280V screen: 320x480, but it's a 4:3 aspect ratio screen which means actual square pixels are made of 2 vertical pixels making ratio correct resolution: 320x240
+The app is distributed as one OpenDingux `.opk` package and targets Adam v2.1 on the RG280V.
 
-Starting the app by default views the Books list screen. If a book was opened last time, it will open the same book at the same place.
+App drawing should look right on the unusual RG280V screen: the native framebuffer is 320x480, but each square pixel occupies two vertical framebuffer pixels. The aspect-correct logical resolution is therefore 320x240. Pixel-specific indicators below are measured in **native framebuffer pixels**, not logical pixels.
+
+The initial reading target is English-language prose in unprotected, reflowable EPUBs.
+
+### Content folders and saved state
+
+* EPUB books are found in `$HOME/books` by default.
+* MP3 music is found in `$HOME/music` by default.
+* Both folder paths can be changed in the app settings.
+* Settings, reading positions, completion status, and resume state are saved under `$HOME/.epubreader/`.
+* On a fresh launch, the app opens the Books List. If the app was exited while reading, the next launch resumes that book at its last saved position. If it was exited from the Books List, the app returns to the list.
 
 Default theme is dark. Default font size is medium. Both are remembered when changed.
 
@@ -41,7 +51,7 @@ Shows current active book font size (remembers last set): small, medium (default
 
 Book rendering font size can be changed by toggled through presets by pressing Y button. This is the only place font size is changeable (in the books list) because they'll change how many pages books have.
 
-Books are sorted alphabetically. Finished books are listed at the end. There's a progress bar to the right (a 2 pixel wide bar) for when the list overflows the screen.
+Books are sorted alphabetically. Finished books are listed at the end. When the list overflows the screen, a scrollbar appears at the right and is 2 native framebuffer pixels wide.
 
 * A cursor that highlights the current book is used to select which book to open.
 * dpad up and down to move up and down.
@@ -55,11 +65,15 @@ Books are sorted alphabetically. Finished books are listed at the end. There's a
 The reading experience is focused with only these two components shown during reading:
 
 * the actual book text rendered using truetype utf-8 font at the preset size
-* a 1-pixel high bottom bar indicating the current reading position, color used here should be low contrast so they don't stand out.
+* a 1-native-pixel-high bottom bar indicating the current reading position; use a low-contrast color so it does not stand out.
 
 in-book hyperlinks are rendered but aren't clickable/interactable (minimalism is the point).
 
-Theme can be changed by pressing R2 and L2 buttons, but font-size is unchangable from the book reading screen.
+Theme can be changed by pressing R2 and L2 buttons, but font-size is unchangeable from the book reading screen.
+
+* dpad left or L1 turns to the previous page.
+* dpad right or R1 turns to the next page.
+* Pressing select opens or closes the position slider. While it is open, dpad left and right adjust the target by 1%, dpad up and down adjust it by 10%, A jumps to the selected position, and B cancels. Pressing X cancels the slider and opens the popup menu.
 
 Pressing X brings up the popup menu and book header panel:
 
@@ -80,4 +94,4 @@ Available when in book reader screen. Music doesn't start by itself or resume fr
 * Starting and pausing/resuming music is done by pressing the A button briefly (as long as the popup menu is closed)
 * Tracks can be skipped by holding A button (one skip per button hold)
 * Music plays in shuffle mode, a random playlist is generated everytime playback is started and if playlist is finished, a new one is generated and played. Playlist is a shuffled list of all tracks found.
-* Volume is controlled with the physical volume buttons, defaults to 50% and remembers were it was last.
+* Volume is controlled with the physical volume buttons, defaults to 50%, and remembers its last setting.
