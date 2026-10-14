@@ -1,0 +1,62 @@
+{
+  "FreeType-FTL.txt": {
+    "sha256": "08c135755dd589039470f1fdbb400daaabaaa50d0b366d19cebff4d22986baa1",
+    "url": "https://raw.githubusercontent.com/freetype/freetype/VER-2-10-4/docs/FTL.TXT"
+  },
+  "GCC-Runtime-Exception.txt": {
+    "sha256": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74",
+    "url": "https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-11.1.0/COPYING.RUNTIME"
+  },
+  "GPL-2.0.txt": {
+    "sha256": "231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c",
+    "url": "https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-11.1.0/COPYING"
+  },
+  "GPL-3.0.txt": {
+    "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "url": "https://raw.githubusercontent.com/gcc-mirror/gcc/releases/gcc-11.1.0/COPYING3"
+  },
+  "SDL-COPYING.txt": {
+    "sha256": "bb117c0fbd7f57f64170b690285d7df07c2371b578e3b3cd3aa2e1155ef461a0",
+    "url": "https://raw.githubusercontent.com/OpenDingux/SDL/97557d6bd/COPYING"
+  },
+  "SDL_ttf-COPYING.txt": {
+    "sha256": "b609721d3d4ac67facaf86f068c8b311b6c5f6cef89b6d84268aa38b7867ab7b",
+    "url": "https://raw.githubusercontent.com/libsdl-org/SDL_ttf/70b2940cc75e92aab02a67d2f827caf2836a2c74/COPYING"
+  },
+  "alsa-lib-COPYING.txt": {
+    "sha256": "32434afcc8666ba060e111d715bfdb6c2d5dd8a35fa4d3ab8ad67d8f850d2f2b",
+    "url": "https://raw.githubusercontent.com/alsa-project/alsa-lib/v1.2.5.1/COPYING"
+  },
+  "eudev-COPYING.txt": {
+    "sha256": "ab15fd526bd8dd18a9e77ebc139656bf4d33e97fc7238cd11bf60e2b9b8666c6",
+    "url": "https://raw.githubusercontent.com/eudev-project/eudev/v3.2.10/COPYING"
+  },
+  "libdrm-MIT.txt": {
+    "archive_sha256": "c554cef03b033636a975543eab363cc19081cb464595d3da1ec129f87370f888",
+    "member": "libdrm-2.4.107/xf86drm.c",
+    "sha256": "2c6cd40ad6584f081f95c01b67c13ee968cee011729eb5c4a3425e6df2c59d2b",
+    "url": "https://dri.freedesktop.org/libdrm/libdrm-2.4.107.tar.xz"
+  },
+  "libiconv-COPYING.LIB.txt": {
+    "sha256": "56bdea73b6145ef6ac5259b3da390b981d840c24cb03b8e1cbc678de7ecfa18d",
+    "url": "https://raw.githubusercontent.com/arthenica/libiconv/v1.15/COPYING.LIB"
+  },
+  "libpng-LICENSE.txt": {
+    "sha256": "bf5e22b9dce8464064ae17a48ea1133c3369ac9e1d80ef9e320e5219aa14ea9b",
+    "url": "https://raw.githubusercontent.com/pnggroup/libpng/v1.6.37/LICENSE"
+  },
+  "mpg123-COPYING.txt": {
+    "archive_sha256": "503a76d82d97f1a6513bbeb284e460a99fb17ef80f23a661d8fc026ce6adcbbc",
+    "member": "mpg123-1.25.15/COPYING",
+    "sha256": "f40e0dd86b27b52e429b693a87b3ca63ae0a98a4d142e77207aa6bdf1db7a295",
+    "url": "https://sources.buildroot.net/mpg123/mpg123-1.25.15.tar.bz2"
+  },
+  "tslib-COPYING.txt": {
+    "sha256": "9b872a8a070b8ad329c4bd380fb1bf0000f564c75023ec8e1e6803f15364b9e9",
+    "url": "https://raw.githubusercontent.com/libts/tslib/1.22/COPYING"
+  },
+  "zlib-LICENSE.txt": {
+    "sha256": "7960b6b1cc63e619abb77acaea5427159605afee8c8b362664f4effc7d7f7d15",
+    "url": "https://raw.githubusercontent.com/madler/zlib/v1.2.11/README"
+  }
+}

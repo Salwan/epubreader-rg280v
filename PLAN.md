@@ -11,12 +11,12 @@ Build a single OpenDingux `.opk` application for reading English-prose EPUBs and
 | Display | Native 320×480 framebuffer; aspect-correct logical geometry of 320×240 |
 | Books | English-prose, reflowable EPUBs |
 | Default content folders | `$HOME/books` and `$HOME/music`, configurable in settings |
-| Themes | Dark, warm, amber, matrix, and light; dark initially |
+| Themes | Dark, warm, amber, matrix, light, and warm2; dark initially |
 | Reader font | TrueType, UTF-8; small, medium, and large; medium initially |
-| Library text | Small, sharp bitmap text |
+| Library text | Small, sharp 5×14-native-pixel bitmap text, selected on-device |
 | Reading navigation | D-pad left/right and L1/R1 page turns |
 | Position navigation | Select opens/closes a jump slider |
-| Indicators | Reader progress bar is one native row; list scrollbar is two native columns |
+| Indicators | Reader progress bar is two native rows; list scrollbar is two native columns |
 | Distribution | One OPK; GPL-compatible licensing is acceptable |
 
 `README.md` is the feature baseline. The page-turn controls and jump slider from `BRAINSTORM.md` are included per user confirmation. The user will perform on-device verification once testable OPK artifacts are available.
@@ -27,12 +27,12 @@ Build a single OpenDingux `.opk` application for reading English-prose EPUBs and
 
 The OpenDingux GCW0 Buildroot configuration uses little-endian MIPS32r2, uClibc, and hardware floating point. This is the starting ABI target for the application.
 
-Use an OpenDingux Beta/GCW0 SDK compatible with Adam v2.1. Pin the selected SDK version and checksum. The historical `2021-10-22` SDK is a candidate to investigate during bootstrap; verify its availability and compatibility before relying on it.
+Use the checksum-pinned OpenDingux GCW0 `2022-09-22` SDK in `third_party/manifest.json`. Its diagnostic OPK passed launch and platform testing on Adam v2.1. The historical `2021-10-22` candidate was unavailable from its original hosting domains.
 
 Build with:
 
 - CMake, with host and RG280V cross-compilation configurations.
-- C++17, after confirming the chosen SDK compiler and C++ runtime support it.
+- C++17, confirmed with the pinned GCC 11.1.0 compiler and bundled C++ runtime.
 - Project-local build and dependency directories.
 - An explicit dependency manifest recording upstream revisions, options, and checksums.
 
@@ -40,7 +40,7 @@ Build with:
 
 Use the OpenDingux SDL 1.2 integration for display, input, and audio. The OpenDingux SDL fork contains a KMS/DRM backend with scaling support. Commander and the locally inspected PdfViewer source demonstrate practical SDL use on this device family.
 
-The original Commander repository has moved to [od-contrib/commander](https://github.com/od-contrib/commander). Its font rendering code demonstrates independent horizontal and vertical DPI, useful for RG280V's non-square pixel geometry. The local PdfViewer source confirmed SDL 1.2, RGB565 drawing, buffered presentation, keyboard-style controls, and historical GCW0/uClibc build integration. Its normal viewport is 320×240, so the new application's native-resolution path must still be validated.
+The original Commander repository has moved to [od-contrib/commander](https://github.com/od-contrib/commander). Its font rendering code demonstrates independent horizontal and vertical DPI, useful for RG280V's non-square pixel geometry. The local PdfViewer source confirmed SDL 1.2, RGB565 drawing, buffered presentation, keyboard-style controls, and historical GCW0/uClibc build integration. Milestone 1 subsequently confirmed the new application's 320×480 native-resolution path on the RG280V.
 
 ### 2.3 EPUB engine: headless CRengine
 
@@ -62,7 +62,7 @@ Use mpg123 for MP3 decoding, following the model demonstrated by GMU: a worker d
 
 The RG280V device tree assigns keycodes to dedicated volume buttons. The OpenDingux power daemon handles these buttons and adjusts ALSA volume directly.
 
-The application should restore its saved mixer level (default 50%), observe and persist subsequent ALSA mixer changes, and avoid independently adjusting volume on those same physical presses. This prevents a single press from causing two increments. Confirm the actual mixer control on Adam v2.1 during the first device test.
+The application should restore its saved mixer level (default 50%), observe and persist subsequent ALSA mixer changes, and avoid independently adjusting volume on those same physical presses. This prevents a single press from causing two increments. Milestone 1 verified `PCM,0` on Adam v2.1: raw range 0–31, no playback switch; the physical volume buttons change this control once per press. Other observed controls (`HEADPHONES,0`, `LINE IN BYPASS,0`) are not used for the reader's persisted volume. Audio output was 44100 Hz, stereo, S16 with zero reported underruns.
 
 ### 2.6 Packaging
 
@@ -148,13 +148,13 @@ Separate logical layout from native framebuffer coordinates:
 
 - Design interface placement around 320×240 logical geometry.
 - Present through the native 320×480 framebuffer.
-- Draw bitmap interface text directly to the native surface.
-- Draw the reader progress bar after composition at the final native row.
+- Draw 5×14 bitmap interface text directly to the native surface.
+- Draw the reader progress bar after composition at the final two native rows (478–479).
 - Draw the list scrollbar at exactly two native columns.
 
-For the initial CRengine prototype, render at 640×480 square-pixel geometry, then reduce horizontally to 320×480 while preserving vertical samples. Scale fonts, margins, and CSS physical units consistently. Compare this approach on hardware with rendering at 320×240 followed by vertical doubling; select the production path based on visual quality, responsiveness, and resource use.
+The device-selected production path renders at 640×480 square-pixel geometry, then applies horizontal 2:1 box filtering to 320×480 while preserving vertical samples. Scale fonts, margins, and CSS physical units consistently when integrating CRengine. Milestone 1's comparison with 320×240 vertical doubling established the user's preference for the box-filtered path; the diagnostic retains the comparison specimens.
 
-The first display prototype should include native bitmap text, TrueType reading samples, both rendering paths, circles, checkerboards, fine lines, and all five theme palettes.
+The display prototype includes native bitmap text, TrueType reading samples, both rendering paths, circles, checkerboards, fine lines, and all six theme palettes. Device feedback selected 5×14 bitmap text and requested a two-row progress bar, warmer amber, and a `warm2` light-paper palette inspired by approximately 4000K reading light.
 
 ### 4.2 Reading typography
 
@@ -204,7 +204,7 @@ Start with approximately 350 ms before list key repeat and 80 ms between repetit
 
 ### 5.2 Reader
 
-Normal reading shows only book content and a low-contrast progress bar that is exactly one native framebuffer row high. Hyperlinks remain visually rendered but are not focusable or activatable.
+Normal reading shows only book content and a low-contrast progress bar that is exactly two native framebuffer rows high. Hyperlinks remain visually rendered but are not focusable or activatable.
 
 | Control | Action |
 |---|---|
@@ -322,6 +322,13 @@ Each milestone produces a testable artifact as early as possible. The first hard
 
 ### Milestone 1 — Platform diagnostic OPK
 
+**Implementation status:** accepted on RG280V / Adam v2.1 with version `0.1.0`;
+all device checklist items passed. The user's annotated results remain in
+`docs/DEVICE-TEST.md`. Version `0.1.1` implements the visual feedback; its focused
+follow-up is `docs/DEVICE-TEST-0.1.1.md`. Cross-build/packaging and host checks are
+documented in `docs/BUILD.md`. The official 2022-09-22 GCW0 SDK is pinned in
+`third_party/manifest.json`.
+
 **Deliverables:**
 
 - Reproducible cross-build and OPK packaging.
@@ -364,7 +371,7 @@ Each milestone produces a testable artifact as early as possible. The first hard
 **Deliverables:**
 
 - Bitmap books list.
-- Five themes.
+- Six themes, including warm2.
 - Reader progress bar.
 - Header and popup menu.
 - Jump slider.

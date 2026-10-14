@@ -1,2 +1,7 @@
 tmp/
 .opencode/
+build/
+dist/
+third_party/sdk/
+third_party/downloads/
+*.core

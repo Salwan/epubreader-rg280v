@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=EPUB Reader Diagnostic
+Comment=RG280V platform tests - Milestone 1
+Exec=./launch.sh
+Icon=epubreader
+Terminal=false
+Type=Application
+Categories=applications;
+X-OD-Manual=DEVICE-TEST.txt

@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "sdk": {
+    "version": "OpenDingux GCW0 2022-09-22",
+    "url": "https://github.com/OpenDingux/buildroot/releases/download/od-2022.09.22/opendingux-gcw0-toolchain.2022-09-22.tar.xz",
+    "archive": "opendingux-gcw0-toolchain.2022-09-22.tar.xz",
+    "sha256": "25eb241e7088d93656d2aa42f57ba288849aa57415e0067428e8260283209c26",
+    "compiler": "GCC 11.1.0, C++17",
+    "abi": "ELF32 little-endian MIPS32r2, o32, hard-float, uClibc",
+    "buildroot": "https://github.com/OpenDingux/buildroot/tree/od-2022.09.22"
+  },
+  "fonts": {
+    "version": "DejaVu 2.37",
+    "url": "https://github.com/dejavu-fonts/dejavu-fonts/releases/download/version_2_37/dejavu-fonts-ttf-2.37.tar.bz2",
+    "archive": "dejavu-fonts-ttf-2.37.tar.bz2",
+    "sha256": "fa9ca4d13871dd122f61258a80d01751d603b4d3ee14095d65453b4e846e17d7",
+    "faces": ["DejaVuSerif.ttf", "DejaVuSerif-Bold.ttf", "DejaVuSerif-Italic.ttf", "DejaVuSerif-BoldItalic.ttf"],
+    "license": "Bitstream Vera license; DejaVu changes public domain"
+  },
+  "dependencies": [
+    {"name": "SDL", "revision": "OpenDingux/SDL 97557d6bd", "version": "1.2.16", "options": "SDK build: KMS/DRM, ALSA, no X11/fbcon/PulseAudio", "license": "LGPL-2.1-or-later"},
+    {"name": "SDL_ttf", "revision": "libsdl-org/SDL_ttf 70b2940cc75e92aab02a67d2f827caf2836a2c74", "version": "2.0.11.1", "options": "SDK build against FreeType; no X11", "license": "Zlib"},
+    {"name": "mpg123", "version": "1.25.15", "options": "SDK generic_fpu; application requests signed 16-bit PCM at negotiated SDL rate", "license": "LGPL-2.1"},
+    {"name": "alsa-lib", "version": "1.2.5.1", "options": "SDK build; diagnostic observes playback controls, one startup restore", "license": "LGPL-2.1-or-later"},
+    {"name": "FreeType", "version": "2.10.4", "options": "SDK build", "license": "FTL or GPL-2.0-or-later"}
+  ],
+  "package": {"squashfs": "4.6.1", "compression": "gzip", "block_size": 131072, "source_date_epoch": 1663804800}
+}

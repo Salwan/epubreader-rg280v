@@ -3,6 +3,26 @@ EPUB Book Reader for RG280V
 
 Would be awesome if I can read epub books on my RG280V.
 
+## Implementation status
+
+**Milestone 1: accepted on RG280V / Adam v2.1; all device checklist items passed.**
+
+The diagnostic OPK exercises native display patterns, both aspect-correct font
+paths, button events, six themes, MP3/chirp audio, and ALSA volume persistence.
+Version `0.1.1` incorporates the device feedback: a two-native-row progress bar,
+warmer amber, and a warm light-background `warm2` palette. The selected reader
+path is 640×480 with horizontal 2:1 box filtering; UI bitmap text is 5×14 native.
+
+- Build: `bash scripts/build-opk.sh`
+- Artifact: `dist/epubreader-diagnostic-m1-0.1.1.opk`
+- [Build and host verification](docs/BUILD.md)
+- [Milestone 1 verification results and artifact checksum](docs/VERIFICATION.md)
+- [Installation, controls, and visual follow-up](docs/DEVICE-TEST-0.1.1.md)
+- [Passed checklist and device feedback](docs/DEVICE-TEST.md)
+- [Pinned dependencies and licenses](third_party/README.md)
+
+The feature design below remains the baseline for the complete reader.
+
 It has a strange chipset, but there are already many apps made for it using the platform name "OpenDingux" specifically for an older Anbernic device RG350.
 
 ## Resources for development
@@ -39,11 +59,11 @@ At any point during the app, pressing select + start exits.
 
 ### Books List screen
 
-Uses a bitmap native resolution text (small and sharp) to display the list of books.
+Uses 5×14-native-pixel bitmap text (small and sharp) to display the list of books.
 
 Lists all the books found in the folder with the status of each book (percentage of completion) and a checkmark if the book has been read.
 
-Shows current active theme from available themes (remembers which one was set last): dark (default), warm, amber, matrix, and light.
+Shows current active theme from available themes (remembers which one was set last): dark (default), warm, amber, matrix, light, and warm2 (very warm light background with dark text).
 
 Themes can be changed by pressing R2 and L2 buttons.
 
@@ -64,8 +84,8 @@ Books are sorted alphabetically. Finished books are listed at the end. When the 
 
 The reading experience is focused with only these two components shown during reading:
 
-* the actual book text rendered using truetype utf-8 font at the preset size
-* a 1-native-pixel-high bottom bar indicating the current reading position; use a low-contrast color so it does not stand out.
+* the actual book text rendered using truetype utf-8 font at the preset size, at 640×480 and horizontally box-filtered to 320×480
+* a 2-native-pixel-high bottom bar indicating the current reading position; use a low-contrast color so it does not stand out.
 
 in-book hyperlinks are rendered but aren't clickable/interactable (minimalism is the point).
 
