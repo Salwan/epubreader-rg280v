@@ -1,8 +1,16 @@
 # Milestone 5 device test — EPUB Reader 0.5.0
 
-Target: **RG280V / Adam v2.1**. **Device acceptance pending.** Host/build evidence
+Target: **RG280V / Adam v2.1**. Host/build evidence
 is recorded in [VERIFICATION-M5.md](VERIFICATION-M5.md); the complete device and
 desktop controls are in [CONTROLS.md](CONTROLS.md).
+
+**Result: Milestone 5 accepted with version `0.5.0`.** The user confirmed
+on-device testing and verification:
+
+> I've tested and verfied Milestone 5 on device.
+
+The detailed checklist below is retained as a scenario reference; acceptance is
+recorded by the user's overall milestone-verification confirmation above.
 
 ## Install and compatibility
 

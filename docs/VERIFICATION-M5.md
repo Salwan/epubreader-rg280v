@@ -8,11 +8,15 @@ dist/epubreader-m5-0.5.0.opk
 SHA256: 05cb02ca9f669283aa24e2aa0cf19cee92184198f7dd7de0289a3266e268b522
 ```
 
-**M5 implementation and host/build verification are complete; ready for device
-evaluation.** Device acceptance is pending the user's
-[RG280V audio checklist](DEVICE-TEST-M5.md). The full device/desktop reference is
-[CONTROLS.md](CONTROLS.md). Existing M4/M3 production JSON schemas and M2 import
-are retained; playback sessions, catalog, shuffle, and track numbers are transient.
+**Milestone 5 is accepted on RG280V / Adam v2.1 with version `0.5.0`.** The user
+tested and verified M5 on-device; see the [device acceptance record](DEVICE-TEST-M5.md).
+Implementation and host/build verification are complete. The full device/desktop
+reference is [CONTROLS.md](CONTROLS.md). Existing M4/M3 production JSON schemas and
+M2 import are retained; playback sessions, catalog, shuffle, and track numbers
+are transient.
+
+The delivered OPK contains the original evaluation checklist. This subsequent
+device acceptance is recorded in the repository documentation.
 
 ## Build and delivery checks
 
@@ -27,7 +31,7 @@ are retained; playback sessions, catalog, shuffle, and track numbers are transie
 | ELF/ABI/runtime closure | ELF32 little-endian MIPS32r2/o32, hard float; 14 bundled target libraries; firmware loader/libc only; no `libatomic` dependency |
 | Actual audio linkage | Executable directly needs `libmpg123.so.0` and `libasound.so.2`; bundled closure and library hashes verified |
 | SquashFS extraction | 54 files, 8 directories; extracted contents match staging |
-| Manuals/launcher/assets | M5 checklist/controls match source, M5 launcher identity, shell syntax, original-book allowlist, no short music test fixtures packaged |
+| Manuals/launcher/assets | Original M5 evaluation checklist/controls matched source at delivery; M5 launcher identity, shell syntax, original-book allowlist, no short music test fixtures packaged |
 | Package integrity | `.sha256` verification and independent package `cmp` passed |
 | Notices/documentation/whitespace | Dependency notice hashes, local documentation links, and `git diff --check` passed |
 
@@ -105,7 +109,7 @@ and documentation links. SDK and squashfs-tools 4.6.1 remain reproducibility inp
   restoration, changed-range fallback, unchanged/absent snapshots, 250 ms debounce,
   tick wrap, and preserving font/theme. Storage checks cover volume save failure,
   newer-snapshot retry, and raw-volume/folder/font/theme persistence after reopen.
-  Firmware step/setter behavior remains a device check.
+   Firmware step/setter behavior is part of the device scenarios referenced below.
 
 ### Native rendering and visual review
 
@@ -144,6 +148,7 @@ and a sustained 15–30 minute reading/music session.
 
 ## Device acceptance
 
-Pending the user's RG280V / Adam v2.1 results. M1 established the audio/mixer
-platform behavior, and M4 remains the accepted interface baseline; this M5 build
-requires the supplied production-audio acceptance checks before marking M5 accepted.
+The user tested Milestone 5 on the device and confirmed that it is verified.
+The [device test record](DEVICE-TEST-M5.md) preserves that confirmation alongside
+the detailed audio scenarios. Implementation, host/build verification, and
+on-device acceptance are complete for version `0.5.0` on RG280V / Adam v2.1.

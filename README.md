@@ -5,10 +5,11 @@ Would be awesome if I can read epub books on my RG280V.
 
 ## Implementation status
 
-**Milestone 5: integrated music `0.5.0` is ready for RG280V evaluation.**
+**Milestone 5: accepted on RG280V / Adam v2.1 with version `0.5.0`.**
 
-Host Debug and ASan/UBSan checks pass **8/8** each; independent MIPS builds produce
-byte-identical OPKs. Device audio acceptance is pending the user's checklist.
+The user tested and verified M5 on-device. The acceptance record is in
+[DEVICE-TEST-M5.md](docs/DEVICE-TEST-M5.md). Host Debug and ASan/UBSan checks pass
+**8/8** each; independent MIPS builds produce byte-identical OPKs.
 
 The production reader now has startup-only MP3 discovery, per-book shuffle
 playback, automatic continuation, brief A play/pause/resume, held A skip,
