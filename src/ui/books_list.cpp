@@ -22,10 +22,10 @@ void renderApplication(Canvas& canvas, const Controller& app) {
         return;
     }
     canvas.clear(p.background);
-    auto line = [&](int x, int y, const std::string& text, size_t cells = 51) { canvas.text(x, y, bitmapText(text, cells), p.text); };
+    auto line = [&](int x, int y, const std::string& text, size_t cells = 51) { canvas.text(x, y, bitmapLine(text, cells), p.text); };
     const bool chooser = app.screen() == Screen::FolderChooser;
     auto pathLabel = [](const std::string& path) {
-        auto text = bitmapText(path);
+        auto text = bitmapLine(path);
         return text.size() > 51 ? "..." + text.substr(text.size() - 48) : text;
     };
     line(6, 10, chooser ? "CHOOSE CONTENT FOLDER" : "EPUB READER " EPUBREADER_VERSION " / BOOKS");

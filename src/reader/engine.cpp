@@ -50,6 +50,7 @@ struct ReaderEngine::Impl {
     std::unique_ptr<LVDocView> view;
     struct Image { std::vector<uint32_t> pixels; std::string text, pageAnchor; int images = 0; };
     std::map<int, Image> pages;
+    std::vector<int> percentPages;
 
     Impl(const std::string& assets, std::string directory) : stateDirectory(std::move(directory)) {
         stylesheet = readText(assets + "/styles/reader.css");
@@ -94,6 +95,19 @@ struct ReaderEngine::Impl {
         // method deliberately skips files smaller than 30K).
         view->getDocument()->swapToCache(timeout);
         view->getDocument()->updateMap(timeout);
+    }
+    void buildNavigation() {
+        const int count = view->getPageCount();
+        // Our single-visible-page mode has identical internal/external numbering.
+        if (count < 1 || count != view->getPageCount(true)) throw std::runtime_error("Unsupported page numbering");
+        percentPages.resize(101);
+        const int height = view->GetFullHeight();
+        for (int percent = 0; percent <= 100; ++percent) {
+            const int y = static_cast<int>(static_cast<int64_t>(height) * percent / 100);
+            percentPages[static_cast<size_t>(percent)] = std::clamp(view->getPageList()->FindNearestPage(y, 0), 0, count - 1);
+        }
+        percentPages.front() = 0; percentPages.back() = count - 1;
+        if (!std::is_sorted(percentPages.begin(), percentPages.end())) throw std::runtime_error("Invalid page navigation layout");
     }
     void open(const ReaderRequest& r) {
         view.reset(); pages.clear(); anchor.clear(); identity.clear();
@@ -146,6 +160,7 @@ struct ReaderEngine::Impl {
         }
         if (!saved.empty() && !restore(saved)) warning = "Saved anchor invalid; opened at beginning";
         if (anchor.empty()) anchor = utf8(view->getBookmark().toString());
+        buildNavigation();
         cacheDocument();
     }
     Image render(int page) {
@@ -180,6 +195,7 @@ struct ReaderEngine::Impl {
         const auto& image = pages.at(page);
         ReaderResult result;
         result.page = page; result.pageCount = view->getPageCount();
+        result.percentPages = percentPages;
         // Upstream reports the last page's start (and can be negative for a
         // one-page document). Our progress represents the displayed page end.
         result.progress = page == result.pageCount - 1 ? 10000 : std::clamp(view->getPosEndPagePercent(), 0, 10000);
@@ -223,6 +239,7 @@ ReaderResult ReaderEngine::execute(const ReaderRequest& r, Progress progress) {
             e.view->setFontSize(std::array<int, 3>{{24, 28, 32}}[static_cast<size_t>(e.font)]);
             e.view->checkRender();
             if (!e.restore(e.anchor)) throw std::runtime_error("Text anchor lost during pagination");
+            e.buildNavigation();
             // The next open builds this variant's keyed document cache lazily.
         } else if (r.command == ReaderCommand::Theme) {
             e.theme = std::clamp(r.value, 0, 5); e.setTheme();

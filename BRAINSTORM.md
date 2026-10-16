@@ -66,3 +66,7 @@ At the moment, there's no indication how many music tracks were picked up during
 I can shutdown the RG280V from the SimpleMenu interface and pretty quickly. Is there a way to initiate a shutdown from within the epubreader app?
 
 If there's, this is an additional useful action if the user fell asleep during reading. Auto-shutdown should be initiated when battery reaches 2% (as long as device is not currently charging), this should happen app-wide (regardless of which screen app is on).
+
+### UI Tweaks
+
+* In Books List screen, list of books should be grouped by: books that are more than 0% and less than 100% come first (reading), books that are 0% come second (unread), books that are 100% come last (read).

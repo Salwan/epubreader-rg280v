@@ -3,6 +3,9 @@
 #include <optional>
 
 namespace epub {
+// Encoder returns a length-prefixed frame; decoder receives the frame body.
+std::string encodeReaderResult(const ReaderResult& result);
+ReaderResult decodeReaderResult(const std::string& body);
 int readerWorkerMain(int fd, const std::string& assets, const std::string& stateDirectory, int parent);
 // Spawn/exec permits replacement after SDL/storage threads start. The UI only
 // pumps bounded, nonblocking frames; document/directory inspection stays here.

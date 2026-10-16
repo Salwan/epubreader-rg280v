@@ -1,4 +1,4 @@
-# Building the Milestone 3 library reader
+# Building the Milestone 4 reader
 
 ## Host prerequisites (Fedora 42, x86_64 Linux)
 
@@ -30,8 +30,8 @@ archives, extracts and relocates the SDK under
 builds, audits the ELF and full shared-library dependency closure, and packages:
 
 ```text
-dist/epubreader-m3-0.3.0.opk
-dist/epubreader-m3-0.3.0.opk.sha256
+dist/epubreader-m4-0.4.0.opk
+dist/epubreader-m4-0.4.0.opk.sha256
 ```
 
 The engine and hashing library are built statically. Rendering features are
@@ -57,12 +57,12 @@ Package timestamps and compile-time content do not depend on the wall clock.
 ```sh
 export OD_SDK="$PWD/third_party/sdk/gcw0-toolchain"
 export SOURCE_DATE_EPOCH=1663804800
-cmake -S . -B build/repro-m3-final -G Ninja \
+cmake -S . -B build/repro-m4 -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/rg280v.cmake \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build/repro-m3-final --parallel 4
-python3 scripts/package.py --build build/repro-m3-final --output dist/repro-m3.opk
-cmp dist/epubreader-m3-0.3.0.opk dist/repro-m3.opk
+cmake --build build/repro-m4 --parallel 4
+python3 scripts/package.py --build build/repro-m4 --output dist/repro-m4.opk
+cmp dist/epubreader-m4-0.4.0.opk dist/repro-m4.opk
 ```
 
 The pinned SDK and squashfs-tools version are part of reproducibility. ELF and
@@ -111,6 +111,12 @@ to the list. Highlight Font size with Up/Down and adjust with Left/Right; B/X
 closes the popup. Escape+Enter saves/exits everywhere. Folder selection uses
 arrows/A with Use this folder and parent rows; B cancels.
 
+Escape (Select) in an idle reader opens the jump slider. Left/Right adjusts
+−/+1%, Up/Down +/−10%, brief A confirms, B/Escape cancels, and X switches to the
+popup. Movement previews the exact target page without engine work. Confirming
+sends one page request; cancel/no-op confirmation retains the exact origin.
+See [CONTROLS.md](CONTROLS.md) for all contexts and physical/desktop mappings.
+
 Production state defaults to `$HOME/.epubreader/`: `config.json`, `session.json`,
 `books/*.json`, and rebuildable `cache/`. M2 `slice/state.ini` and
 `slice/books/*.position` are imported idempotently. With `--state-dir DIR`, only
@@ -129,7 +135,12 @@ sorting/selection, rename/removal, and navigation boundaries. Application checks
 exercise the production controller with real child workers: list/reader resume,
 independent books, replaced/missing/renamed targets, one-page/sticky completion,
 folder settings, font controls, cancellation, and native scrollbar/text rendering.
-They emit eight native BMPs under `build/host/library-screenshots/`.
+M4 additionally exercises production Input → Controller dispatch, slider origin/
+endpoint previews, short/long A, repeat/focus/tick-wrap behavior, both quit-chord
+orders in nine screen/overlay/work contexts, single-request commits, immediate
+restart, canceled work, sticky completion, and worker-failure recovery. It emits
+32 native BMPs under `build/host/library-screenshots/`, including all six themes'
+list/menu/chooser and slider/long-metadata/notice specimens.
 
 The reader tests
 check EPUB 2/3 metadata and spine order, every numbered text token across page
@@ -140,8 +151,12 @@ document and neighbor-image cache hits, interrupted-cache rebuilding, framed IPC
 and bounded worker cancellation. Popup checks cover font-only adjustment,
 clamped endpoints, busy-reader input arbitration, and held-key consumption across
 overlay transitions. Reader smoke uses the production popup dispatch path and
-produces 13 native BMPs under `build/host/reader-screenshots/` (three fonts, three
-font-row selections, six themes, and the warm2 popup).
+produces 43 native BMPs under `build/host/reader-screenshots/` (three fonts, three
+font-row selections, and each theme's reading/menu plus four slider targets).
+Reader checks exercise all 101 layout-derived targets for each EPUB 2/3 specimen
+and the one-page book, codec roundtrips/malformed navigation data, and map
+stability through font/theme work. Preview maps use rendered document height,
+not a page-count approximation; only text anchors are persisted.
 
 The original platform diagnostic is also built as `epubreader-diagnostic`. Its
 tests check input timing/chords, pixel transforms, crash-interrupted state
@@ -200,7 +215,9 @@ platform diagnostic from a current target build, use
 `python3 scripts/package.py --diagnostic`. The accepted historical M1 artifacts
 and test records retain their original versions.
 
-See [DEVICE-TEST-M3.md](DEVICE-TEST-M3.md) for installation, migration, and controls,
-and [VERIFICATION-M3.md](VERIFICATION-M3.md) for the verified artifact/checks.
+See [DEVICE-TEST-M4.md](DEVICE-TEST-M4.md) for installation and device acceptance,
+[CONTROLS.md](CONTROLS.md) for controls, and
+[VERIFICATION-M4.md](VERIFICATION-M4.md) for the verified artifact/checks.
+[DEVICE-TEST-M3.md](DEVICE-TEST-M3.md) preserves the accepted library milestone.
 [DEVICE-TEST.md](DEVICE-TEST.md) records the passed original on-device platform
 acceptance; [DEVICE-TEST-0.1.1.md](DEVICE-TEST-0.1.1.md) covers its visual follow-up.

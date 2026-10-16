@@ -1,4 +1,4 @@
-# Dependencies through Milestone 3
+# Dependencies through Milestone 4
 
 `manifest.json` pins the entire target SDK archive, so its headers and binary
 libraries cannot vary independently. The cross-build uses only this sysroot;

@@ -44,6 +44,11 @@ std::string bitmapText(const std::string& value, size_t cells) {
     }
     return out;
 }
+std::string bitmapLine(const std::string& value, size_t cells) {
+    auto out = bitmapText(value, cells);
+    std::replace(out.begin(), out.end(), '\n', ' ');
+    return out;
+}
 const std::array<Palette, 6> palettes{{
     {"dark", 0x101419, 0xd8dce0, 0x92b6b0, 0x444f59, 0x202930},
     {"warm", 0x272019, 0xe5d2b3, 0xc8a16c, 0x655240, 0x3b3025},

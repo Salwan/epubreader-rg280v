@@ -43,19 +43,23 @@ ReaderRequest decodeRequest(const std::string& data) {
         throw std::runtime_error("Invalid reader request");
     r.command = static_cast<ReaderCommand>(command); return r;
 }
-std::string encode(const ReaderResult& r) {
+}
+std::string encodeReaderResult(const ReaderResult& r) {
+    if (!r.pixels.empty() && !r.validNavigation()) throw std::runtime_error("Invalid page navigation metadata");
     std::ostringstream out;
     out << r.complete << ' ' << r.pageCacheHit << ' ' << r.documentCacheHit << ' ' << r.anchorOnPage << ' '
         << r.page << ' ' << r.pageCount << ' ' << r.progress << ' ' << r.font << ' ' << r.theme << ' ' << r.images << ' ' << r.elapsedMs;
     for (const auto* s : {&r.error, &r.message, &r.identity, &r.path, &r.title, &r.author, &r.anchor, &r.pageAnchor, &r.text, &r.layoutKey})
         out << ' ' << std::quoted(*s);
     out << ' ' << static_cast<int>(r.kind) << ' ' << static_cast<int>(r.command) << ' ' << r.commandValue << ' ' << r.requestId << ' ' << r.generation
-        << ' ' << r.more << ' ' << std::quoted(entriesJson(r.entries));
+         << ' ' << r.more << ' ' << std::quoted(entriesJson(r.entries));
+    out << ' ' << r.percentPages.size();
+    for (int page : r.percentPages) out << ' ' << page;
     std::string data; appendNumber(data, static_cast<uint32_t>(out.str().size())); data += out.str();
     if (!r.pixels.empty()) data.append(reinterpret_cast<const char*>(r.pixels.data()), r.pixels.size() * sizeof(uint32_t));
     return frame(data);
 }
-ReaderResult decodeResult(const std::string& data) {
+ReaderResult decodeReaderResult(const std::string& data) {
     if (data.size() < 4 || number(data.data()) > data.size() - 4) throw std::runtime_error("Invalid reader result length");
     const size_t metadata = number(data.data());
     std::istringstream in(data.substr(4, metadata));
@@ -68,11 +72,18 @@ ReaderResult decodeResult(const std::string& data) {
     if (kind < 0 || kind > 2 || command < 0 || command > 9) throw std::runtime_error("Invalid result kind/command");
     r.kind = static_cast<ResultKind>(kind); r.command = static_cast<ReaderCommand>(command);
     r.entries = parseEntries(entries, 64);
+    size_t targets = 0;
+    if (!(in >> targets) || (targets != 0 && targets != 101)) throw std::runtime_error("Invalid navigation length");
+    r.percentPages.resize(targets);
+    for (int& page : r.percentPages) in >> page;
     const size_t bytes = data.size() - 4 - metadata;
     if (!in || (bytes && bytes != pixelCount * sizeof(uint32_t))) throw std::runtime_error("Invalid reader result");
     if (bytes) { r.pixels.resize(pixelCount); std::memcpy(r.pixels.data(), data.data() + 4 + metadata, bytes); }
+    if ((bytes && (!r.complete || r.kind != ResultKind::Page || !r.error.empty() || !r.validNavigation()))
+        || (!bytes && targets)) throw std::runtime_error("Invalid page navigation metadata");
     return r;
 }
+namespace {
 bool readAll(int fd, char* buffer, size_t count) {
     while (count) {
         const ssize_t n = ::read(fd, buffer, count);
@@ -119,12 +130,12 @@ void run(int fd, const std::string& assets, const std::string& directory) {
                 if (!engine) engine = std::make_unique<ReaderEngine>(assets, directory);
                 result = engine->execute(request, [&](const std::string& stage, int percent) {
                     ReaderResult update; tag(update); update.complete = false; update.message = stage; update.progress = percent;
-                    if (!sendAll(fd, encode(update))) throw std::runtime_error("Reader UI disconnected");
+                    if (!sendAll(fd, encodeReaderResult(update))) throw std::runtime_error("Reader UI disconnected");
                 });
             }
         } catch (const std::exception& error) { result.error = error.what(); }
         tag(result);
-        if (!sendAll(fd, encode(result))) break;
+        if (!sendAll(fd, encodeReaderResult(result))) break;
         if (engine && result.kind == ResultKind::Page && result.error.empty()) {
             try { engine->prefetch(); } catch (const std::exception&) { /* Derived cache is optional. */ }
         }
@@ -197,7 +208,7 @@ std::optional<ReaderResult> ReaderWorker::poll() {
         if (length > maxFrame) return failure("Reader result exceeds bound");
         if (incoming_.size() >= 4 + length) {
             ReaderResult result;
-            try { result = decodeResult(incoming_.substr(4, length)); }
+            try { result = decodeReaderResult(incoming_.substr(4, length)); }
             catch (const std::exception&) { return failure("Invalid reader result"); }
             incoming_.erase(0, 4 + length);
             if (result.generation != generation_ || result.requestId != current_.requestId) return failure("Mismatched reader response");

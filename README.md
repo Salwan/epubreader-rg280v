@@ -5,6 +5,27 @@ Would be awesome if I can read epub books on my RG280V.
 
 ## Implementation status
 
+**Milestone 4: implemented with version `0.4.0`; ready for RG280V evaluation.**
+
+The complete interface adds a Select-operated jump slider with layout-derived
+target page previews, one-request confirmation, exact-origin cancellation, and
+held-input/overlay arbitration. It preserves M3 settings and bookmarks.
+
+- Build: `bash scripts/build-opk.sh`
+- Artifact: `dist/epubreader-m4-0.4.0.opk`
+- [Complete device and desktop controls](docs/CONTROLS.md)
+- [Installation and M4 device acceptance checklist](docs/DEVICE-TEST-M4.md)
+- [M4 host/build verification and artifact checksum](docs/VERIFICATION-M4.md)
+- [M4 implementation plan](docs/PLAN-M4.md)
+- [Build and host preview instructions](docs/BUILD.md)
+
+While reading, **Select** opens the slider. Left/Right adjusts −/+1%; Up/Down
+adjusts +/−10%; brief A jumps; B/Select cancels; X cancels and opens the popup.
+Preview leaves the page and progress bar untouched. Select+Start saves/exits
+everywhere. On-device acceptance is pending the user's results.
+
+### Previous library milestone
+
 **Milestone 3: accepted on RG280V / Adam v2.1 with version `0.3.0`.**
 
 The user verified all core features and confirmed the app is fully usable on the
@@ -28,9 +49,6 @@ X in the reader opens Back to book list / Font size / Exit. Highlight Font size
 and use Left/Right to adjust it while preserving the text anchor. L2/R2 changes
 theme; Select+Start saves/exits everywhere. On first upgrade, M2 preferences and
 bookmarks are imported; subsequent launches restore the production session.
-
-**Next milestone:** [Milestone 4 — Complete interface plan](docs/PLAN-M4.md),
-covering the jump slider, complete overlay/input behavior, and visual verification.
 
 ### Previous rendering milestone
 

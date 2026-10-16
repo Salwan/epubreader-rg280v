@@ -208,9 +208,9 @@ void Controller::action(Action a) {
         if (a == Action::AShort) if (const auto* e = catalog.current()) { const auto path = e->path; open(path); }
         return;
     }
-    const bool wasOpen = readerControls.menuOpen();
-    const auto control = readerControls.handle(a, store_.config.preferences.font, store_.config.preferences.theme, worker_.busy() || openPending_);
-    if (wasOpen != readerControls.menuOpen()) transition_ = true;
+    const auto wasOpen = readerControls.overlay();
+    const auto control = readerControls.handle(a, store_.config.preferences.font, store_.config.preferences.theme, worker_.busy() || openPending_, &page);
+    if (wasOpen != readerControls.overlay()) transition_ = true;
     using E = ReaderEffect; using C = ReaderCommand;
     switch (control.effect) {
     case E::Quit: quit_ = true; break;
@@ -219,8 +219,18 @@ void Controller::action(Action a) {
     case E::Turn: submit({C::Turn, control.value}); break;
     case E::Font: submit({C::Font, control.value}); break;
     case E::Theme: submit({C::Theme, control.value}); break;
+    case E::Jump:
+        if (readerControls.jumpMatches(page) && submit({C::Page, control.value})) {
+            readerControls.closeOverlay(); notice.clear(); transition_ = true;
+        } else {
+            notice = "Cannot submit jump; return to list to retry"; readerControls.showMenu(); transition_ = true;
+        }
+        break;
     case E::Refresh: case E::None: break;
     }
+}
+void Controller::consumeTransition(Input& input) {
+    if (transition()) { input.consumeA(); input.consumeRepeat(); }
 }
 void Controller::shutdown() {
     if (screen_ == Screen::Library || screen_ == Screen::FolderChooser) { catalog.remember(store_.session); store_.session.reader = false; }

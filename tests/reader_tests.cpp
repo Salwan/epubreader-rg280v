@@ -27,7 +27,69 @@ epub::ReaderResult good(epub::ReaderWorker& worker, const epub::ReaderRequest& r
     check(result.error.empty(), result.error);
     check(result.pixels.size() == 320 * 480 && result.pageCount > 0, "Missing rendered page");
     check(result.anchorOnPage, "Authoritative anchor not on displayed page");
+    check(result.validNavigation(), "Missing/bad navigation map after worker roundtrip");
     return result;
+}
+void checkNavigation(epub::ReaderWorker& worker, const epub::ReaderResult& first) {
+    auto frame = epub::encodeReaderResult(first);
+    check(epub::decodeReaderResult(frame.substr(4)).percentPages == first.percentPages, "Navigation codec roundtrip");
+    const auto marker = frame.find("\"[]\" 101 ");
+    check(marker != std::string::npos, "Navigation field missing from wire data");
+    frame.replace(marker + 5, 3, "100");
+    bool rejected = false;
+    try { epub::decodeReaderResult(frame.substr(4)); } catch (const std::exception&) { rejected = true; }
+    check(rejected, "Malformed IPC target count accepted");
+    frame = epub::encodeReaderResult(first);
+    frame[marker + 9] = '9';
+    rejected = false;
+    try { epub::decodeReaderResult(frame.substr(4)); } catch (const std::exception&) { rejected = true; }
+    check(rejected, "Malformed IPC target indices accepted");
+    for (int kind = 0; kind < 3; ++kind) {
+        auto bad = first;
+        if (kind == 0) bad.percentPages.pop_back();
+        if (kind == 1) bad.percentPages[50] = -1;
+        if (kind == 2) bad.percentPages[50] = first.pageCount;
+        rejected = false;
+        try { epub::encodeReaderResult(bad); } catch (const std::exception&) { rejected = true; }
+        check(rejected, "Malformed navigation map encoded");
+    }
+    bool uneven = false;
+    for (int percent = 0; percent <= 100; ++percent) {
+        const int page = first.percentPages[static_cast<size_t>(percent)];
+        const auto result = good(worker, {epub::ReaderCommand::Page, page});
+        check(result.page == page && result.percentPages == first.percentPages, "Percent preview differs from committed page");
+        uneven = uneven || page != (first.pageCount - 1) * percent / 100;
+    }
+    check(first.pageCount == 1 || uneven, "Uneven-layout fixture did not distinguish document-height from page-count mapping");
+    check(good(worker, {epub::ReaderCommand::Restore, 0, 1, 0, {}, first.anchor}).page == first.page, "Navigation check failed to restore origin");
+}
+void checkJumpControls(const epub::ReaderResult& page) {
+    using A = epub::Action; using E = epub::ReaderEffect;
+    epub::ReaderControls controls;
+    auto action = [&](A a, bool busy = false) { return controls.handle(a, page.font, page.theme, busy, &page); };
+    action(A::Select, true); check(!controls.jumpOpen(), "Busy reader opened slider");
+    action(A::Select); check(controls.jumpOpen() && !controls.menuOpen(), "Slider did not open exclusively");
+    const int origin = controls.targetPercent();
+    check(controls.targetPage() == page.page, "Slider origin moved the page");
+    action(A::Right); check(controls.targetPercent() == std::min(100, origin + 1), "Slider +1 direction");
+    action(A::Left); check(controls.targetPage() == page.page, "Returning to origin drifted");
+    check(action(A::AShort).effect == E::Refresh && !controls.jumpOpen(), "Origin confirmation is not a no-op");
+    action(A::Select);
+    for (int n = 0; n < 20; ++n) action(A::Down);
+    check(controls.targetPercent() == 0 && controls.targetPage() == 0, "Slider lower clamp");
+    action(A::Up); check(controls.targetPercent() == 10, "Slider +10 direction");
+    for (int n = 0; n < 20; ++n) action(A::Up);
+    check(controls.targetPercent() == 100 && controls.targetPage() == page.pageCount - 1, "Slider upper clamp");
+    for (const auto key : {A::L1, A::R1, A::L2, A::R2, A::Y, A::Start, A::ALong})
+        check(action(key).effect == E::None && controls.jumpOpen(), "Slider leaked unrelated/long-A action");
+    check(action(A::Quit, true).effect == E::Quit, "Quit blocked by slider");
+    action(A::X); check(controls.menuOpen() && !controls.jumpOpen() && controls.selected() == epub::ReaderMenuItem::Back, "Slider X did not reset popup");
+    action(A::Select); check(controls.menuOpen(), "Select escaped popup routing");
+    action(A::B); action(A::Select); action(A::B); check(!controls.jumpOpen(), "Slider B cancel");
+    action(A::Select); action(A::Select); check(!controls.jumpOpen(), "Slider Select cancel");
+    action(A::Select);
+    auto changed = page; changed.layoutKey += "changed";
+    check(controls.handle(A::AShort, page.font, page.theme, false, &changed).effect != E::Jump, "Stale-layout slider committed");
 }
 void checkMenuControls() {
     using A = epub::Action; using E = epub::ReaderEffect; using M = epub::ReaderMenuItem;
@@ -93,6 +155,7 @@ int main(int argc, char** argv) {
             check(first.author == "RG280V Reader Project", "EPUB author metadata");
             check(first.text.find("Café") != std::string::npos && first.text.find("naïve") != std::string::npos, "UTF-8 prose missing");
             check(first.pageCount > 30, "Fixture did not paginate");
+            checkNavigation(worker, first);
             check(good(worker, {epub::ReaderCommand::Turn, -1}).page == 0, "First-page clamp");
             bool sawImage = false, sawGreen = false, sawBlue = false;
             std::string all;
@@ -120,6 +183,7 @@ int main(int argc, char** argv) {
             }
             check(good(worker, {epub::ReaderCommand::Turn, 1}).page == first.pageCount - 1, "Last-page clamp");
             auto middle = good(worker, {epub::ReaderCommand::Page, first.pageCount / 2});
+            checkJumpControls(middle);
             const std::string anchor = middle.anchor, mediumKey = middle.layoutKey;
             epub::ReaderControls menu;
             menu.handle(epub::Action::X, 1, 0, false);
@@ -132,12 +196,14 @@ int main(int argc, char** argv) {
                 font = control.value;
                 auto result = good(worker, {epub::ReaderCommand::Font, font});
                 check(result.anchor == anchor, "Anchor drift across repeated font changes");
+                if (font == 1) check(result.percentPages == middle.percentPages, "Original font navigation map drifted");
                 check(menu.menuOpen() && menu.selected() == epub::ReaderMenuItem::FontSize, "Font change moved/dismissed popup");
                 if (font != 1) check(result.layoutKey != mediumKey && result.pageCount != middle.pageCount, "Preset did not repaginate/key cache");
                 else check(result.page == middle.page && result.pageAnchor == middle.pageAnchor, "Medium preset restoration");
             }
             auto theme = good(worker, {epub::ReaderCommand::Theme, 5});
             check(theme.pageCount == middle.pageCount && theme.anchor == anchor && theme.layoutKey == mediumKey, "Theme changed pagination/anchor");
+            check(theme.percentPages == middle.percentPages, "Theme changed navigation map");
             check(theme.pixels != middle.pixels, "Theme failed to redraw");
             check(std::count(theme.pixels.begin(), theme.pixels.end(), 0x35271d) > 50, "Warm2 foreground is not authoritative");
             epub::savePosition(state, {middle.identity, middle.path, anchor});
@@ -158,6 +224,7 @@ int main(int argc, char** argv) {
         }
         auto shortBook = good(worker, {epub::ReaderCommand::Open, 0, 1, 0, fixtures + "/one-page.epub"});
         check(shortBook.pageCount == 1 && good(worker, {epub::ReaderCommand::Turn, 1}).page == 0, "One-page clamp");
+        checkNavigation(worker, shortBook); checkJumpControls(shortBook);
         epub::savePosition(state, {shortBook.identity, shortBook.path, "/does/not/exist.0"});
         auto invalidSaved = good(worker, {epub::ReaderCommand::Open, 0, 1, 0, shortBook.path});
         check(!invalidSaved.message.empty() && invalidSaved.page == 0, "Invalid saved anchor fallback");

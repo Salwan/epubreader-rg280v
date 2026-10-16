@@ -42,6 +42,7 @@ public:
     void action(Action action);
     void tick(uint32_t now);
     void shutdown();
+    void consumeTransition(Input& input);
     Screen screen() const { return screen_; }
     const Config& config() const { return store_.config; }
     bool busy() const { return worker_.busy() || openPending_ || (screen_ == Screen::Library && !indexDone_) || chooserPending_ || chooserMore_; }

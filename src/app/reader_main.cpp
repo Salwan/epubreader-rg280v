@@ -59,12 +59,13 @@ int main(int argc, char** argv) {
             else if (arg == "--smoke-test") smoke = epub::absolutePath(value());
             else if (arg == "--native-window") native = true;
             else if (arg == "--help") {
-                std::cout << "EPUB Reader " EPUBREADER_VERSION " / Milestone 3\n"
+                std::cout << "EPUB Reader " EPUBREADER_VERSION " / Milestone 4\n"
                     << "--assets DIR --state-dir DIR --book FILE --books-dir DIR --music-dir DIR --native-window --smoke-test DIR\n"
                     << "Default: books list, or the last successfully opened reader session.\n"
                     << "List: arrows select/page; A opens; X settings/folders; E/R themes.\n"
-                    << "Reader: left/right or Q/W pages; X menu; E/R themes.\n"
+                    << "Reader: left/right or Q/W pages; X menu; E/R themes; Escape jump slider.\n"
                     << "Menu: up/down selects; left/right adjusts Font size; A activates; B/X closes.\n"
+                    << "Jump: left/right -/+1%; up/down +/-10%; brief A jumps; B/Escape cancels; X menu.\n"
                     << "Escape+Enter: save and exit everywhere. Folder overrides are saved.\n";
                 return 0;
             } else if (!arg.empty() && arg[0] != '-' && book.empty()) book = epub::absolutePath(arg);
@@ -74,7 +75,7 @@ int main(int argc, char** argv) {
         std::cout.setf(std::ios::unitbuf);
         if (!std::freopen((stateDirectory + "/reader.log").c_str(), "w", stdout) ||
             !std::freopen((stateDirectory + "/stderr.log").c_str(), "w", stderr)) throw std::runtime_error("Cannot open reader logs");
-        std::cout << "EPUBREADER " EPUBREADER_VERSION " Milestone 3\nassets=" << assets << "\nstate=" << stateDirectory << '\n';
+        std::cout << "EPUBREADER " EPUBREADER_VERSION " Milestone 4\nassets=" << assets << "\nstate=" << stateDirectory << '\n';
         epub::Store store(stateDirectory, smoke.empty() ? homePath : stateDirectory + "/home");
         if (!booksFolder.empty()) store.config.books = booksFolder;
         if (!musicFolder.empty()) store.config.music = musicFolder;
@@ -83,7 +84,7 @@ int main(int argc, char** argv) {
         std::signal(SIGINT, signalHandler); std::signal(SIGTERM, signalHandler);
         SDLGuard guard;
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) throw std::runtime_error(SDL_GetError());
-        SDL_WM_SetCaption("EPUB Reader - RG280V Milestone 3", nullptr);
+        SDL_WM_SetCaption("EPUB Reader - RG280V Milestone 4", nullptr);
         SDL_ShowCursor(SDL_DISABLE); SDL_EnableKeyRepeat(0, 0);
         SDL_Surface* display = SDL_SetVideoMode(native ? 320 : 640, 480, 16,
             native && smoke.empty() ? SDL_HWSURFACE | SDL_DOUBLEBUF : SDL_SWSURFACE);
@@ -91,7 +92,7 @@ int main(int argc, char** argv) {
         epub::Controller app(store, worker, book);
         epub::Canvas canvas;
         epub::Input input;
-        auto consumeTransition = [&] { if (app.transition()) { input.consumeA(); input.consumeRepeat(); } };
+        auto consumeTransition = [&] { app.consumeTransition(input); };
         auto dispatch = [&](epub::Action a) { app.action(a); consumeTransition(); };
         if (!smoke.empty()) {
             if (book.empty()) throw std::runtime_error("Reader smoke requires --book FILE");
@@ -116,10 +117,19 @@ int main(int argc, char** argv) {
             for (size_t theme = 0; theme < epub::palettes.size(); ++theme) {
                 while (store.config.preferences.theme != static_cast<int>(theme)) { dispatch(epub::Action::R2); wait(); }
                 shot(epub::palettes[theme].name);
+                dispatch(epub::Action::X); shot(std::string(epub::palettes[theme].name) + "-menu"); dispatch(epub::Action::B);
+                dispatch(epub::Action::Select); shot(std::string(epub::palettes[theme].name) + "-jump-origin");
+                for (int n = 0; n < 20; ++n) dispatch(epub::Action::Down);
+                shot(std::string(epub::palettes[theme].name) + "-jump-zero");
+                for (int n = 0; n < 5; ++n) dispatch(epub::Action::Up);
+                shot(std::string(epub::palettes[theme].name) + "-jump-middle");
+                for (int n = 0; n < 5; ++n) dispatch(epub::Action::Up);
+                shot(std::string(epub::palettes[theme].name) + "-jump-hundred");
+                dispatch(epub::Action::B);
             }
             dispatch(epub::Action::X); dispatch(epub::Action::Down); shot("info");
             present(canvas, display, native); app.shutdown();
-            std::cout << "SMOKE PASS: production controller, popup font controls, themes, native composition, JSON state\n"; return 0;
+            std::cout << "SMOKE PASS: production controller, popup font controls, six-theme menus/slider previews, native composition, JSON state\n"; return 0;
         }
         uint64_t lastLoop = suspendClock();
         bool running = true;

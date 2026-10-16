@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=EPUB Reader (M3)
-Comment=RG280V EPUB library and persistent reading sessions
+Name=EPUB Reader (M4)
+Comment=RG280V EPUB reader with jump slider and persistent library
 Exec=./launch.sh
 Icon=epubreader
 Terminal=false

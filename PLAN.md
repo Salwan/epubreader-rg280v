@@ -399,6 +399,12 @@ identity/selection, startup sessions, the usable books-list slice, and verificat
 
 ### Milestone 4 — Complete interface
 
+**Implementation status:** implemented with version `0.4.0`; host/build results
+are recorded in [M4 verification](docs/VERIFICATION-M4.md). Device acceptance is
+pending the supplied [M4 checklist](docs/DEVICE-TEST-M4.md). The jump slider uses
+layout-derived page previews and the existing atomic bookmark/session path;
+all reader overlays share explicit input arbitration.
+
 **Detailed implementation plan:** [Milestone 4 plan](docs/PLAN-M4.md), based on
 the accepted M3 interface. It covers the jump slider, layout-derived target
 previews, overlay/input arbitration, native-pixel verification, and M4 delivery.

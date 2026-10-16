@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -29,5 +30,11 @@ struct ReaderResult {
     uint64_t elapsedMs = 0;
     std::string error, message, identity, path, title, author, anchor, pageAnchor, text, layoutKey;
     std::vector<uint32_t> pixels; // 320x480 native RGB888, with no UI overlays
+    std::vector<int> percentPages; // Exactly 101 layout-derived targets on page results.
+    bool validNavigation() const {
+        return pageCount > 0 && page >= 0 && page < pageCount && percentPages.size() == 101
+            && percentPages.front() == 0 && percentPages.back() == pageCount - 1
+            && std::is_sorted(percentPages.begin(), percentPages.end());
+    }
 };
 }
