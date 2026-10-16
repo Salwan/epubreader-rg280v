@@ -330,8 +330,10 @@ with project name, milestone/version, and agent name when the build is ready.
 
 ## 9. New feature requests to schedule explicitly
 
-[BRAINSTORM.md](../BRAINSTORM.md) also contains recent requests that are not yet
-assigned to a roadmap milestone:
+At M4 planning time, [BRAINSTORM.md](../BRAINSTORM.md) contained requests needing
+explicit scheduling. The recommendations below record that baseline. Track
+information subsequently shipped in M5; power management is now assigned to
+[Milestone 5.5](PLAN-M5.5.md) before M6.
 
 - **Music track counts/current track number:** include this compact popup field
   in M5, alongside startup scanning and real playback session state. M4 should
@@ -343,10 +345,8 @@ assigned to a roadmap milestone:
   power-management follow-up: it spans hardware discovery, app-wide persistence
   transitions, and device shutdown as well as interface rendering.
 
-Confirm the battery request's milestone assignment before implementation. If
-included in M4, add a prerequisite device investigation for the actual battery /
-charger sysfs readings and Adam's supported shutdown mechanism; then add explicit
-unknown-reading behavior, threshold-crossing/re-arm rules, save-before-transition
-ordering, and mocked host/device acceptance checks. Existing repository code has
-no battery observer or system-shutdown integration, so the baseline M4 sequence
-above does not assume those device capabilities have already been established.
+The M5.5 plan supplies the prerequisite battery/charger investigation, comparison
+with Adam's bundled RG350 test, conditional normal-shutdown support, explicit
+unknown-reading and threshold/re-arm behavior, durable-save ordering, and mocked
+host/device checks. The accepted M4/M5 implementation has no battery observer or
+system-shutdown integration; those capabilities belong to this follow-up.

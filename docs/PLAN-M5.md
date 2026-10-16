@@ -382,5 +382,5 @@ the user's RG280V results. Send the project-required Gotify notification when
 that build is ready, including project name, milestone/version, and agent name.
 
 The battery observation/low-power actions and revised library grouping requests
-in [BRAINSTORM.md](../BRAINSTORM.md) still need explicit milestone assignment, as
-noted for power management in the M4 plan.
+in [BRAINSTORM.md](../BRAINSTORM.md), together with the new Music Repeat row, are
+now assigned to [Milestone 5.5](PLAN-M5.5.md) before M6 hardening.

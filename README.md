@@ -24,6 +24,15 @@ returning to the list stops it. Music-folder changes apply on the next launch.
 - [M5 verification](docs/VERIFICATION-M5.md)
 - [M5 implementation plan](docs/PLAN-M5.md)
 
+### Next milestone: 5.5 — Power awareness and reading controls
+
+[Milestone 5.5 implementation plan](docs/PLAN-M5.5.md) schedules the requested
+battery percentage/charging information, low-battery frame and save/list behavior,
+conditional 2% system shutdown, Music Repeat (ALL / ONE / STOP), and
+Reading → Unread → Read library grouping before Milestone 6. It includes Adam's
+bundled **RG350 test** as the battery-reference app. Target version is `0.5.5`;
+implementation is planned.
+
 ### Accepted interface milestone
 
 **Milestone 4: accepted on RG280V / Adam v2.1 with version `0.4.0`.**

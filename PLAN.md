@@ -21,6 +21,10 @@ Build a single OpenDingux `.opk` application for reading English-prose EPUBs and
 
 `README.md` is the feature baseline. The page-turn controls and jump slider from `BRAINSTORM.md` are included per user confirmation. The user will perform on-device verification once testable OPK artifacts are available.
 
+M5 `0.5.0` is device-accepted. The next implementation target is **Milestone 5.5**:
+the battery/low-power, music-repeat, and list-grouping requests in `BRAINSTORM.md`,
+scheduled before M6 hardening. See [the M5.5 plan](docs/PLAN-M5.5.md).
+
 ## 2. Research findings and technical choices
 
 ### 2.1 Build and platform
@@ -79,7 +83,8 @@ Application
 ├── Platform
 │   ├── SDL display and presentation
 │   ├── Physical input mapping
-│   └── ALSA volume observation
+│   ├── ALSA volume observation
+│   └── Battery/USB observation and normal system shutdown (M5.5)
 ├── Library
 │   ├── EPUB discovery and metadata cache
 │   └── Sorting and reading-status lookup
@@ -186,7 +191,9 @@ Implement:
 
 - Case-insensitive `.epub` discovery in the configured books folder.
 - Title display with filename fallback.
-- Alphabetical ordering within unfinished and finished groups.
+- M5.5: Reading → Unread → Read ordering by current progress, alphabetical within
+  each group. Use raw 0–10000 progress: 1–9999 is Reading, 0/unknown is Unread,
+  and 10000 is Read. Sticky completion/checkmarks remain independent of grouping.
 - Progress percentage and bitmap finished checkmark.
 - Current theme and read-only font preset display; font changes are made in the reader popup.
 - Highlighted selection and two-native-column list scrollbar.
@@ -207,6 +214,9 @@ Start with approximately 350 ms before list key repeat and 80 ms between repetit
 ### 5.2 Reader
 
 Normal reading shows only book content and a low-contrast progress bar that is exactly two native framebuffer rows high. Hyperlinks remain visually rendered but are not focusable or activatable.
+
+M5.5 adds the requested static low-battery frame below 15% while on battery;
+the progress bar retains its two native rows. See section 5.6.
 
 | Control | Action |
 |---|---|
@@ -232,10 +242,16 @@ Clamp page turns at the beginning and end of a book. Preserve the underlying rea
   decreases/increases small → medium → large, clamping at the ends. A does not
   alter this setting. Apply changes immediately while keeping the menu open and
   the row highlighted; retain the authoritative text anchor through pagination
-  and save the confirmed preset/position. Other menu rows consume Left/Right
+  and save the confirmed preset/position. Other action rows consume Left/Right
   without turning pages. Font size cannot be changed from the books list.
 - Menu navigation, close, and exit remain responsive during pagination; ignore
   additional font requests until the current reader job completes.
+- M5.5 adds **Music Repeat** between Font size and Exit: Left/Right adjusts
+  **ALL** (default), **ONE**, **STOP**, clamped at the ends; A is consumed on this
+  setting. Persist it without changing the current track or playback state.
+  This setting remains adjustable during reader work.
+- M5.5 adds popup battery percentage (marked as estimated where appropriate),
+  external-power/charging information, and explicit unknown/unavailable status.
 
 ### 5.4 Jump slider
 
@@ -262,6 +278,30 @@ Map physical buttons to semantic actions and apply explicit priority:
 
 Short A is detected on release. Trigger long A once after an initial 600 ms threshold, then suppress the short action. Consume button presses across screen transitions, prevent the A press that opens a book from starting music, and reset held-state tracking after suspension or focus loss. Verify physical face-button labels on hardware before fixing mappings; historical reference programs differ in some button labels.
 
+### 5.6 Battery and low-power behavior (Milestone 5.5)
+
+- Observe power app-wide, including during indexing, opening, pagination, overlays,
+  and folder selection. Use the actual Adam supply profile, comparing readings
+  with the bundled **RG350 test** app. Voltage-based estimates may be needed;
+  missing data must not be interpreted as an empty battery.
+- Below **15%** on battery, show a static red frame two native pixels wide around
+  the displayed book page, leaving progress rows 478–479 intact.
+- At **5% or lower**, checkpoint the last completed text anchor, stop music,
+  return to the Books List, and show a notification. Trigger once per low-battery
+  episode so the user can dismiss and explicitly reopen a book.
+- At **2% or lower**, prepare durable state and request normal system shutdown
+  from any screen if the verified Adam launch context supports it. Otherwise
+  checkpoint/return to the list and report the specific unavailable capability.
+- Automatic actions require fresh, valid, confirmed on-battery readings. External
+  power suppresses them; unknown/stale readings cannot initiate closure/shutdown.
+  The 2% transition takes precedence over the 5% notification.
+- Use asynchronous critical-write acknowledgement, bounded save preparation,
+  explicit exit reasons, and one-shot effects. Normal quit and held-input
+  transitions remain coherent with these automatic events.
+
+Exact sample confirmation, re-arm rules, persistence ordering, shutdown fallback,
+and native layout are specified in [the M5.5 implementation plan](docs/PLAN-M5.5.md).
+
 ## 6. Persistence and library identity
 
 Store versioned settings and per-book state under:
@@ -277,6 +317,7 @@ $HOME/.epubreader/
 ### 6.1 Settings
 
 Persist the selected theme, font preset, mixer volume, and books/music paths.
+M5.5 also persists the app-wide Music Repeat mode, defaulting older configs to ALL.
 
 ### 6.2 Per-book state
 
@@ -304,6 +345,8 @@ Scan `.mp3` files once at application startup. Use three playback states: Stoppe
 
 ### 7.2 Shuffle behavior
 
+This is the **ALL** repeat behavior; M5.5's natural-EOF alternatives are in 7.4.
+
 - Generate a shuffled permutation of all discovered tracks when playback starts.
 - Pause/resume retains the current track and playlist.
 - At playlist completion, generate another permutation.
@@ -325,6 +368,18 @@ Handle empty folders, one-track playlists, removed files, and corrupt tracks. Bo
 - Use generation identifiers so stale decoder completion events cannot restart playback after stop or skip.
 - Mix the navigation chirp through the same audio subsystem.
 - Music continues while reader overlays are open; A actions within overlays are consumed by the overlay.
+
+### 7.4 Music Repeat (Milestone 5.5)
+
+- **ALL** (default): continue through the shuffled playlist and regenerate cycles.
+- **ONE**: repeat the current track at natural EOF without advancing the playlist.
+- **STOP**: stop after the current track's natural EOF; a new brief A uses the
+  normal stopped-start behavior.
+- Manual long A still selects the next shuffled track in every mode, retaining
+  paused intent. Failed tracks keep M5's bounded exclusion/recovery behavior.
+- Changing repeat applies to the next processed matching Finished event and
+  does not start/pause/seek music. Each newly opened/resumed book still starts
+  stopped, and returning to the list stops/discards playback.
 
 ## 8. Implementation milestones and OPK deliverables
 
@@ -447,7 +502,39 @@ track information, and host/device audio verification. Target artifact:
 
 **Exit criteria:** host playback tests pass; user verifies smooth playback during reading and transitions, with no accidental starts and no duplicate volume steps.
 
+### Milestone 5.5 — Power awareness and reading controls
+
+**Implementation status:** planned from accepted M5 `0.5.0`, before M6.
+
+**Detailed implementation plan:** [Milestone 5.5 plan](docs/PLAN-M5.5.md), including
+RG350 test/Adam hardware investigation, voltage-derived battery estimates,
+critical checkpoint acknowledgement, threshold/charging policy, conditional
+normal shutdown, repeat-mode EOF semantics, grouping, and verification.
+
+**Target artifact:** `dist/epubreader-m5.5-0.5.5.opk`.
+
+**Deliverables:**
+
+- Popup battery percentage and charging/external-power status.
+- Static two-native-pixel red frame below 15% on battery.
+- One-shot save/stop/return-to-list notification at 5%, allowing explicit reopen.
+- App-wide normal poweroff at 2% if supported, otherwise a documented
+  checkpoint/list fallback with an explanation of the unsupported capability.
+- Persisted Music Repeat popup item: ALL / ONE / STOP; manual skip in every mode.
+- Reading → Unread → Read grouping with alphabetical order and preserved selection.
+- Testable OPK/checksum, controls, hardware-profile notes, host evidence, and a
+  focused device acceptance checklist.
+
+**Exit criteria:** deterministic power/EOF/grouping and failure-path host checks
+pass; the user verifies battery reporting against RG350 test, power transitions,
+repeat controls, and grouping on RG280V. Shutdown support is established from the
+actual OPK context and either verified or explicitly recorded as unavailable
+with the specified fallback before closing the milestone.
+
 ### Milestone 6 — Hardening and release
+
+**Prerequisite:** complete/accept M5.5, including its recorded shutdown-support
+decision. Harden and release the resulting feature baseline.
 
 **Deliverables:**
 
@@ -472,6 +559,8 @@ Automate behavior that can be tested reliably off-device:
 - Deterministic repeat, hold, and chord timing.
 - Shuffle permutations, pause/resume, end-of-file, and invalid-track exhaustion.
 - Suppression of A actions across overlays and screen transitions.
+- M5.5 repeat-mode EOF/manual-skip behavior, battery parsing/freshness/threshold
+  latches, critical-save outcomes before simulated poweroff, and progress grouping.
 
 Use EPUB fixtures with multiple chapters, nested resource paths, UTF-8 punctuation, emphasis, illustrations, and oversized paragraphs. Build both the host version and the target OPK for each relevant milestone.
 
@@ -487,6 +576,8 @@ The user can test the physical device once an OPK artifact is supplied. Include 
 - Music during sustained page turning and screen transitions.
 - Suspend/resume behavior.
 - A prolonged reading/music session.
+- M5.5 battery/USB status against RG350 test, low-power save/list notifications,
+  conditional normal shutdown/reboot restoration, repeat modes, and regrouping.
 
 Collect the firmware result, OPK version, steps taken, expected behavior, actual behavior, and any photos or logs useful for reproducing a problem. Fix device-only issues and provide a new OPK for retesting.
 
@@ -521,7 +612,9 @@ Measure and tune from Milestones 1–2 rather than treating these initial values
 3. Provide the artifact and device checklist for user testing.
 4. Resolve SDK, display, button, and mixer findings from that test.
 5. Build the EPUB rendering vertical slice and test it on-device through a subsequent OPK.
-6. Add library/persistence, interface, music, then release hardening in milestone order.
+6. Complete library/persistence, interface, and music through M5 (now accepted).
+7. Implement and verify M5.5 power awareness, repeat controls, and progress grouping.
+8. Carry that accepted baseline into M6 release hardening.
 
 The diagnostic and EPUB vertical-slice OPKs resolve the highest-cost uncertainties—SDK compatibility, display quality, controls, rendering performance, bookmark persistence, and audio integration—before the rest of the application is built around them.
 

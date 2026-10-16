@@ -57,10 +57,6 @@ Battery percentage is a critical piece of info since the RG280V device has no wa
 * a warning visual should be shown when battery drops below 15% (and battery is not in charging state), indicator remains on screen in the form of a static red frame around the book page, maybe 2 pixels wide to make it more visible.
 * When reaching 5% battery (and battery is not in charging state), the book should be closed automatically and app transitions back to book list (to store the book current state before battery dies), then show a popup notification (in book list screen) that reading was interrupted because battery reached 5% in order not to lose progress. User is free to continue reading by reselecting the book until battery dies anyway. This procedure should resolve the situation when user falls asleep while reading a book, in which case the app will exit the book and store the status at 5% battery, then the device battery dies while on the books list screen which should be safer.
 
-### Music Tracks info
-
-At the moment, there's no indication how many music tracks were picked up during scanning and which one is playing (if playback is active). Show that info when the popup menu is open as well, keep this info compact so instead of writing the track name just a track number would be enough (and no timestamps necessary).
-
 ### Low-battery shutdown
 
 I can shutdown the RG280V from the SimpleMenu interface and pretty quickly. Is there a way to initiate a shutdown from within the epubreader app?
@@ -80,3 +76,18 @@ In all modes, user can move to the next track by holding `A` as normal, so repea
 ### UI Tweaks
 
 * In Books List screen, list of books should be grouped by: books that are more than 0% and less than 100% come first (reading), books that are 0% come second (unread), books that are 100% come last (read).
+
+### Better File System Integration
+
+This applies to Adam 2.1 specifically which is the last firmware version released for the RG280V.
+
+On the RG280V, the roms, apps, and user files are all on a second dedicated sdcard mounted to `/media/sdcard`, while the first sdcard (with the home folder) is dedicated to the firmware and OS specifically. This design is used so that in case the OS is corrupted in some way or needs to be upgraded or replaced, then no user files will be lost and after a fresh firmware/OS flash everything is where it was left.
+
+At the moment, epubreader is exclusively using the OS sdcard for user files storage which may not be a good idea since a reflash means it'll loss all user data.
+
+I'm already placing the actual app executable in `/media/sdcard/apps`, so this change offers more consistency.
+
+This feature request is for changing epubreader's paths:
+
+* Change `~/.epubreader` config/state/cache path to instead go in: `/media/sdcard/epubreader`
+* Change default `~/books` and `~/music` folders to instead use: `/media/sdcard/books` and `/media/sdcard/music`
