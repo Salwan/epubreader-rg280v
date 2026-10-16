@@ -424,6 +424,14 @@ previews, overlay/input arbitration, native-pixel verification, and M4 delivery.
 
 ### Milestone 5 — Integrated music
 
+**Implementation status:** planned from accepted M4 `0.4.0`.
+
+**Detailed implementation plan:** [Milestone 5 plan](docs/PLAN-M5.md), covering
+startup-only discovery, per-book shuffle sessions, generation-safe audio events,
+short/long A integration, volume persistence, navigation chirps, compact popup
+track information, and host/device audio verification. Target artifact:
+`dist/epubreader-m5-0.5.0.opk`.
+
 **Deliverables:**
 
 - Startup-only track scan.
@@ -431,6 +439,7 @@ previews, overlay/input arbitration, native-pixel verification, and M4 delivery.
 - Short/long A behavior.
 - Physical-volume persistence.
 - List-navigation chirp.
+- Compact popup track count, playback state, and current track number.
 - A testable OPK and audio test checklist.
 
 **Exit criteria:** host playback tests pass; user verifies smooth playback during reading and transitions, with no accidental starts and no duplicate volume steps.

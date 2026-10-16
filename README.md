@@ -27,6 +27,13 @@ adjusts +/−10%; brief A jumps; B/Select cancels; X cancels and opens the popup
 Preview leaves the page and progress bar untouched. Select+Start saves/exits
 everywhere. All M4 features have been verified by the user on the device.
 
+### Next milestone: integrated music
+
+[Milestone 5 implementation plan](docs/PLAN-M5.md) targets version `0.5.0`:
+startup-only MP3 discovery, per-book shuffle playback, brief/held A controls,
+physical-volume persistence, list-navigation chirps, and compact popup track
+information. M5 is planned; the accepted build remains M4 `0.4.0`.
+
 ### Previous library milestone
 
 **Milestone 3: accepted on RG280V / Adam v2.1 with version `0.3.0`.**
