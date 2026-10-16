@@ -67,6 +67,16 @@ I can shutdown the RG280V from the SimpleMenu interface and pretty quickly. Is t
 
 If there's, this is an additional useful action if the user fell asleep during reading. Auto-shutdown should be initiated when battery reaches 2% (as long as device is not currently charging), this should happen app-wide (regardless of which screen app is on).
 
+### Music Repeat
+
+Add a new menu item in the popup menu with 3 repeat options: `ALL` (default), `ONE`, and `STOP`
+
+* `ALL`: current music playback approach, plays tracks from a shuffled playlist endlessly
+* `ONE`: plays only the current track and repeats endlessly
+* `STOP`: once playback of current track ends, automatically stop music playback
+
+In all modes, user can move to the next track by holding `A` as normal, so repeat mode only determines what happens when playback of current track ends.
+
 ### UI Tweaks
 
 * In Books List screen, list of books should be grouped by: books that are more than 0% and less than 100% come first (reading), books that are 0% come second (unread), books that are 100% come last (read).

@@ -18,7 +18,7 @@ void renderApplication(Canvas& canvas, const Controller& app) {
     const auto& config = app.config();
     const auto& p = palettes[static_cast<size_t>(config.preferences.theme)];
     if (app.screen() == Screen::Reader || app.screen() == Screen::Opening) {
-        renderReaderSlice(canvas, app.page, config.preferences.theme, app.readerControls, app.busy(), app.notice.empty() ? app.status : app.notice);
+        renderReaderSlice(canvas, app.page, config.preferences.theme, app.readerControls, app.busy(), app.notice.empty() ? app.status : app.notice, app.music());
         return;
     }
     canvas.clear(p.background);

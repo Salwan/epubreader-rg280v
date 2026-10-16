@@ -1,8 +1,8 @@
-# EPUB Reader 0.4.0 — Controls
+# EPUB Reader 0.5.0 — Controls
 
 Target: RG280V / Adam v2.1. All A selections are **brief presses, activated on
 release**. A hold of 600 ms is consumed once and does not also activate a short
-press. Physical volume is handled by firmware; integrated music arrives with M5.
+press. Physical volume is handled by firmware and remembered by the reader.
 
 ## Global controls
 
@@ -33,7 +33,8 @@ held state without changing the reading position or slider preview.
 | Folder chooser: B | Cancel without changing settings |
 
 EPUB discovery is nonrecursive and case-insensitive. The list displays font size
-read-only. Music-folder configuration is saved for M5.
+read-only. Selection changes chirp; clamped boundaries and menu movement are silent.
+Music-folder changes are saved and take effect on the next app launch.
 
 ## Reading and popup
 
@@ -43,6 +44,8 @@ read-only. Music-folder configuration is saved for M5.
 | Reading: Right / R1 | Next page |
 | Reading: X | Open / close header and popup, initially selecting Back to book list |
 | Reading: Select | Open position-jump slider when a page is ready and the worker is idle |
+| Reading: brief A | Start / pause / resume background music |
+| Reading: hold A for 600 ms | Skip once; stays paused if paused, no action if stopped |
 | Popup: Up / Down | Select Back to book list, Font size, Exit application |
 | Popup: Left / Right on Font size | Decrease / increase small → medium → large; clamp at ends |
 | Popup: A | Activate Back / Exit; consumed on Font size |
@@ -52,7 +55,29 @@ Font changes preserve the original text anchor and keep the same menu row
 selected. Other popup keys are consumed, including Select, page-turn shoulders,
 and theme shoulders. During opening, jumping, and pagination, additional reader
 requests are ignored; X/menu navigation/close, Back, and exit remain available.
-Brief/long A in unobstructed reading is reserved for M5 music and currently inert.
+Fresh reader A presses also work during page/font/jump jobs once a page exists.
+
+### Music sessions
+
+MP3s are scanned once at launch, nonrecursively, with case-insensitive `.mp3`
+matching. Add files or change **Music folder**, then restart to refresh the catalog.
+There is no automatic start after discovery or reader resume: each newly opened
+book starts stopped. Returning to the Books List stops and discards the session.
+
+Playback shuffles every eligible track once per cycle, then continues with a new
+permutation, avoiding an immediate cycle-boundary repeat when alternatives exist.
+Pause/resume retains the track position/order. A hold advances once and suppresses
+its release action. Paused skip selects the next track at its beginning silently.
+Corrupt/removed tracks are excluded until restart; exhaustion stops cleanly.
+
+Music continues under popup/slider overlays, whose A actions never control music.
+The popup shows playback state and `track/count`; the track number is its stable
+one-based position in the sorted startup catalog, not its shuffled playlist slot.
+The count includes discovered candidates that may later prove unplayable.
+Scan/playback failures are explained in the popup and logs. Normal reading keeps
+only content and progress. Physical volume restores once at launch (initially
+50% of the raw range), then firmware changes are observed and saved; the app does
+not apply an additional step for the physical keys.
 
 ## Jump slider
 

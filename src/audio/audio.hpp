@@ -4,17 +4,21 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
 namespace epub {
 enum class Playback { Stopped, Playing, Paused };
+enum class AudioEnd { Finished, Failed };
+struct AudioTerminal { unsigned generation = 0; AudioEnd reason = AudioEnd::Finished; std::string message; };
 struct AudioStatus {
     Playback playback;
     std::string track, message;
     int frequency = 0, channels = 0;
     unsigned underruns = 0;
+    unsigned generation = 0;
     uint64_t decodedFrames = 0, playedFrames = 0;
     size_t queuedFrames = 0;
 };
@@ -36,22 +40,24 @@ class Audio {
     std::atomic<bool> exiting_{false};
     std::mutex infoMutex_;
     std::string path_, message_ = "Stopped";
+    std::optional<AudioTerminal> terminal_;
     std::thread worker_;
     static void callback(void* user, Uint8* stream, int length);
     void decode();
-    void message(const std::string& value);
-    void report(unsigned generation, const std::string& value, bool failed = false);
+    void report(unsigned generation, const std::string& value, std::optional<AudioEnd> end = {});
 public:
     Audio();
     ~Audio();
     Audio(const Audio&) = delete;
     Audio& operator=(const Audio&) = delete;
     bool available() const { return opened_; }
-    void start(const std::string& path);
+    unsigned start(const std::string& path, Playback initial = Playback::Playing);
+    void pause(bool paused);
     void toggle(const std::string& path);
     void stop();
     void chirp();
     AudioStatus status();
+    std::optional<AudioTerminal> terminal();
 };
 std::vector<std::string> discoverMp3(const std::string& directory);
 }

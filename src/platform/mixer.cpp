@@ -6,6 +6,29 @@ namespace epub {
 int MixerLevel::percent() const {
     return maximum <= minimum ? 0 : static_cast<int>((left - minimum) * 100 / (maximum - minimum));
 }
+MixerLevel MixerLevel::restored(const State& saved) const {
+    MixerLevel level = *this;
+    const bool exact = id == saved.mixer && minimum == saved.minimum && maximum == saved.maximum
+        && saved.rawLeft >= minimum && saved.rawLeft <= maximum;
+    level.left = exact ? saved.rawLeft : minimum + (maximum - minimum) * std::clamp(saved.volume, 0, 100) / 100;
+    level.right = exact && saved.rawRight >= minimum && saved.rawRight <= maximum ? saved.rawRight : level.left;
+    level.switchLeft = exact ? saved.switchLeft : -1; level.switchRight = exact ? saved.switchRight : -1;
+    return level;
+}
+bool MixerLevel::checkpoint(State& s) const {
+    const bool changed = s.mixer != id || s.volume != percent() || s.minimum != minimum || s.maximum != maximum
+        || s.rawLeft != left || s.rawRight != right || s.switchLeft != switchLeft || s.switchRight != switchRight;
+    s.mixer = id; s.volume = percent(); s.minimum = minimum; s.maximum = maximum;
+    s.rawLeft = left; s.rawRight = right; s.switchLeft = switchLeft; s.switchRight = switchRight;
+    return changed;
+}
+void VolumeCheckpoint::observe(const MixerLevel* level, State& preferences, uint32_t now) {
+    if (level && level->checkpoint(preferences)) { dirty_ = true; since_ = now; }
+}
+bool VolumeCheckpoint::due(uint32_t now) {
+    if (!dirty_ || now - since_ < 250) return false;
+    dirty_ = false; return true;
+}
 Mixer::Mixer(const std::string& card, const State& saved, bool restore) {
     int result = snd_mixer_open(&handle_, 0);
     if (result >= 0) result = snd_mixer_attach(handle_, card.c_str());
@@ -23,7 +46,7 @@ Mixer::Mixer(const std::string& card, const State& saved, bool restore) {
     if (levels_.empty()) { error_ = "No playback-volume controls"; return; }
     bool found = false;
     for (size_t i = 0; i < levels_.size(); ++i) if (levels_[i].id == saved.mixer) { selected_ = static_cast<int>(i); found = true; }
-    if (!found) for (const char* preferred : {"Master", "PCM", "Headphone", "Speaker"}) {
+    if (!found) for (const char* preferred : {"PCM", "Master", "Headphone", "Speaker"}) {
         for (size_t i = 0; i < levels_.size(); ++i) if (levels_[i].name == preferred) { selected_ = static_cast<int>(i); found = true; break; }
         if (found) break;
     }
@@ -32,13 +55,12 @@ Mixer::Mixer(const std::string& card, const State& saved, bool restore) {
         auto& l = levels_[static_cast<size_t>(selected_)];
         auto* e = elements_[static_cast<size_t>(selected_)];
         const bool exact = l.id == saved.mixer && l.minimum == saved.minimum && l.maximum == saved.maximum && saved.rawLeft >= l.minimum && saved.rawLeft <= l.maximum;
-        const long left = exact ? saved.rawLeft : l.minimum + (l.maximum - l.minimum) * saved.volume / 100;
-        const long right = exact && saved.rawRight >= l.minimum && saved.rawRight <= l.maximum ? saved.rawRight : left;
+        const auto restored = l.restored(saved);
         // Startup restoration is the only mixer write path. Volume keys are
         // handled by pwswd; neither key handling nor polling calls a setter.
-        result = snd_mixer_selem_set_playback_volume(e, SND_MIXER_SCHN_FRONT_LEFT, left); ++writes_;
+        result = snd_mixer_selem_set_playback_volume(e, SND_MIXER_SCHN_FRONT_LEFT, restored.left); ++writes_;
         if (snd_mixer_selem_has_playback_channel(e, SND_MIXER_SCHN_FRONT_RIGHT)) {
-            const int r = snd_mixer_selem_set_playback_volume(e, SND_MIXER_SCHN_FRONT_RIGHT, right); ++writes_;
+            const int r = snd_mixer_selem_set_playback_volume(e, SND_MIXER_SCHN_FRONT_RIGHT, restored.right); ++writes_;
             if (r < 0) result = r;
         }
         if (exact && snd_mixer_selem_has_playback_switch(e)) {
@@ -87,10 +109,7 @@ bool Mixer::poll() {
     if (changed) ++changes_;
     return changed;
 }
-void Mixer::checkpoint(State& s) const {
-    if (const auto* l = selected()) {
-        s.mixer = l->id; s.volume = l->percent(); s.minimum = l->minimum; s.maximum = l->maximum;
-        s.rawLeft = l->left; s.rawRight = l->right; s.switchLeft = l->switchLeft; s.switchRight = l->switchRight;
-    }
+bool Mixer::checkpoint(State& s) const {
+    const auto* l = selected(); return l && l->checkpoint(s);
 }
 }

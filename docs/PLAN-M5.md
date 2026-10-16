@@ -1,6 +1,11 @@
 # Milestone 5 — Integrated music implementation plan
 
-**Status:** planned; implementation starts from device-accepted M4 `0.4.0`.
+**Status:** implemented in `0.5.0`; host/build verification is complete and the OPK
+is ready for device evaluation. Device acceptance is pending.
+Built from device-accepted M4 `0.4.0`. See [verification](VERIFICATION-M5.md) and
+the [device checklist](DEVICE-TEST-M5.md). The design below records the
+implementation baseline; the controller's music port supports a counting fake,
+and volume restore/checkpoint/debounce decisions are shared with host tests.
 
 **Target deliverable:** `dist/epubreader-m5-0.5.0.opk`, its SHA256 file, updated
 controls/build documentation, host verification, and an RG280V audio checklist.

@@ -62,8 +62,7 @@ bool Diagnostic::action(Action a) {
             if (a == Action::Up) trackIndex = (trackIndex + tracks.size() - 1) % tracks.size();
             else trackIndex = (trackIndex + 1) % tracks.size();
             if (playing != Playback::Stopped) {
-                audio.start(tracks[trackIndex]);
-                if (playing == Playback::Paused) audio.toggle(tracks[trackIndex]);
+                audio.start(tracks[trackIndex], playing);
             }
         }
     }

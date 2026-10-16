@@ -1,25 +1,17 @@
 #include "audio/audio.hpp"
+#include "audio/catalog.hpp"
 #include <mpg123.h>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstring>
-#include <dirent.h>
+#include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 namespace epub {
 std::vector<std::string> discoverMp3(const std::string& directory) {
-    std::vector<std::string> tracks;
-    DIR* dir = opendir(directory.c_str());
-    if (!dir) return tracks;
-    while (dirent* entry = readdir(dir)) {
-        std::string name = entry->d_name, lower = name;
-        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (lower.size() < 4 || lower.substr(lower.size()-4) != ".mp3") continue;
-        struct stat st{}; const std::string path = directory + '/' + name;
-        if (::stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode)) tracks.push_back(path);
-    }
-    closedir(dir); std::sort(tracks.begin(), tracks.end()); return tracks;
+    return scanMusic(directory).tracks;
 }
 Audio::Audio() {
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0) { message_ = SDL_GetError(); return; }
@@ -46,45 +38,72 @@ Audio::Audio() {
     SDL_PauseAudio(0);
 }
 Audio::~Audio() {
+    stop();
     exiting_ = true;
     if (worker_.joinable()) worker_.join();
     if (opened_) SDL_CloseAudio();
     if (mpgInitialized_) mpg123_exit();
 }
-void Audio::message(const std::string& value) { std::lock_guard<std::mutex> lock(infoMutex_); message_ = value; }
-void Audio::report(unsigned gen, const std::string& value, bool failed) {
+// All command/status paths take infoMutex_ before the SDL lock. The callback
+// takes only SDL's lock and never touches strings or the terminal mailbox.
+void Audio::report(unsigned gen, const std::string& value, std::optional<AudioEnd> end) {
+    std::lock_guard<std::mutex> lock(infoMutex_);
     SDL_LockAudio();
     if (generation_ == gen) {
-        if (failed) { mode_ = Playback::Stopped; queued_ = read_ = write_ = 0; primed_ = false; }
-        message(value);
+        if (end) {
+            mode_ = Playback::Stopped; queued_ = read_ = write_ = 0; primed_ = false;
+            terminal_ = AudioTerminal{gen, *end, value};
+        }
+        message_ = end ? value : mode_ == Playback::Paused ? "Paused" : value;
     }
     SDL_UnlockAudio();
 }
-void Audio::start(const std::string& path) {
-    if (!opened_) return;
+unsigned Audio::start(const std::string& path, Playback initial) {
+    if (!opened_) return 0;
+    std::lock_guard<std::mutex> lock(infoMutex_);
     SDL_LockAudio();
-    { std::lock_guard<std::mutex> lock(infoMutex_); path_ = path; message_ = "Loading MP3"; }
+    path_ = path; message_ = initial == Playback::Paused ? "Paused" : "Loading MP3"; terminal_.reset();
     ++generation_; queued_ = read_ = write_ = 0; primed_ = draining_ = false; decodedFrames_ = 0; playedFrames_ = 0;
-    mode_ = Playback::Playing;
+    mode_ = initial == Playback::Paused ? Playback::Paused : Playback::Playing;
+    const unsigned gen = generation_;
+    SDL_UnlockAudio();
+    return gen;
+}
+void Audio::pause(bool paused) {
+    if (!opened_) return;
+    std::lock_guard<std::mutex> lock(infoMutex_);
+    SDL_LockAudio();
+    if (mode_ != Playback::Stopped) {
+        mode_ = paused ? Playback::Paused : Playback::Playing;
+        message_ = paused ? "Paused" : "Playing";
+    }
     SDL_UnlockAudio();
 }
 void Audio::toggle(const std::string& path) {
     if (!opened_) return;
     if (mode_ == Playback::Stopped) start(path);
-    else if (mode_ == Playback::Playing) { mode_ = Playback::Paused; message("Paused"); }
-    else { mode_ = Playback::Playing; message("Playing"); }
+    else pause(mode_ == Playback::Playing);
 }
 void Audio::stop() {
     if (!opened_) return;
-    SDL_LockAudio(); ++generation_; mode_ = Playback::Stopped; queued_ = read_ = write_ = 0; primed_ = false; SDL_UnlockAudio();
-    message("Stopped");
+    std::lock_guard<std::mutex> lock(infoMutex_);
+    SDL_LockAudio(); ++generation_; mode_ = Playback::Stopped; queued_ = read_ = write_ = 0; primed_ = draining_ = false;
+    terminal_.reset(); path_.clear(); message_ = "Stopped"; SDL_UnlockAudio();
 }
 void Audio::chirp() { if (opened_) { SDL_LockAudio(); chirpAt_ = 0; SDL_UnlockAudio(); } }
 AudioStatus Audio::status() {
-    AudioStatus s{}; s.playback = mode_; s.frequency = spec_.freq; s.channels = spec_.channels;
-    { std::lock_guard<std::mutex> lock(infoMutex_); s.track = path_; s.message = message_; }
-    if (opened_) { SDL_LockAudio(); s.underruns = underruns_; s.decodedFrames = decodedFrames_; s.playedFrames = playedFrames_; s.queuedFrames = queued_ / spec_.channels; SDL_UnlockAudio(); }
+    std::lock_guard<std::mutex> lock(infoMutex_);
+    AudioStatus s{}; s.frequency = spec_.freq; s.channels = spec_.channels;
+    if (opened_) SDL_LockAudio();
+    s.playback = mode_; s.generation = generation_; s.track = path_; s.message = message_;
+    s.underruns = underruns_; s.decodedFrames = decodedFrames_; s.playedFrames = playedFrames_;
+    s.queuedFrames = opened_ ? queued_ / spec_.channels : 0;
+    if (opened_) SDL_UnlockAudio();
     return s;
+}
+std::optional<AudioTerminal> Audio::terminal() {
+    std::lock_guard<std::mutex> lock(infoMutex_);
+    auto result = std::move(terminal_); terminal_.reset(); return result;
 }
 void Audio::callback(void* user, Uint8* stream, int length) {
     auto& a = *static_cast<Audio*>(user);
@@ -108,19 +127,20 @@ void Audio::callback(void* user, Uint8* stream, int length) {
 }
 void Audio::decode() {
     mpg123_handle* decoder = nullptr;
+    int descriptor = -1;
+    auto close = [&] { if (decoder) mpg123_delete(decoder); decoder = nullptr; if (descriptor >= 0) ::close(descriptor); descriptor = -1; };
     unsigned active = 0;
     bool eof = false;
     std::array<unsigned char, 8192> buffer{};
     size_t have = 0, offset = 0;
     auto nap = [] { std::this_thread::sleep_for(std::chrono::milliseconds(5)); };
     while (!exiting_) {
-        const unsigned gen = generation_;
+        unsigned gen; Playback mode; std::string path;
+        { std::lock_guard<std::mutex> lock(infoMutex_); gen = generation_; mode = mode_; if (gen != active) path = path_; }
         if (gen != active) {
             active = gen; eof = false; have = offset = 0;
-            if (decoder) { mpg123_delete(decoder); decoder = nullptr; }
-            if (mode_ != Playback::Stopped) {
-                std::string path;
-                { std::lock_guard<std::mutex> lock(infoMutex_); path = path_; }
+            close();
+            if (mode != Playback::Stopped) {
                 int error = 0; decoder = mpg123_new(nullptr, &error);
                 int result = decoder ? MPG123_OK : MPG123_ERR;
                 if (decoder) {
@@ -129,11 +149,15 @@ void Audio::decode() {
                     if (result == MPG123_OK) result = mpg123_param(decoder, MPG123_ADD_FLAGS, spec_.channels == 2 ? MPG123_FORCE_STEREO : MPG123_MONO_MIX, 0);
                     if (result == MPG123_OK) result = mpg123_format_none(decoder);
                     if (result == MPG123_OK) result = mpg123_format(decoder, spec_.freq, spec_.channels == 2 ? MPG123_STEREO : MPG123_MONO, MPG123_ENC_SIGNED_16);
-                    if (result == MPG123_OK) result = mpg123_open(decoder, path.c_str());
+                    if (result == MPG123_OK) {
+                        descriptor = ::open(path.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+                        struct stat st{};
+                        result = descriptor >= 0 && ::fstat(descriptor, &st) == 0 && S_ISREG(st.st_mode)
+                            ? mpg123_open_fd(decoder, descriptor) : MPG123_ERR;
+                    }
                 }
                 if (result != MPG123_OK) {
-                    report(active,"MP3 open failed",true);
-                    if (decoder) { mpg123_delete(decoder); decoder = nullptr; }
+                    report(active,"MP3 open failed",AudioEnd::Failed); close();
                 } else report(active,"Playing");
             }
         }
@@ -145,11 +169,11 @@ void Audio::decode() {
                 long rate = 0; int channels = 0, encoding = 0;
                 mpg123_getformat(decoder, &rate, &channels, &encoding);
                 if (rate != spec_.freq || channels != spec_.channels || encoding != MPG123_ENC_SIGNED_16) {
-                    report(active,"MP3 format negotiation failed",true);
+                    report(active,"MP3 format negotiation failed",AudioEnd::Failed); close();
                     continue;
                 }
             } else if (result != MPG123_OK && result != MPG123_DONE) {
-                report(active,"MP3 decode failed",true);
+                report(active,"MP3 decode failed",AudioEnd::Failed); close();
                 continue;
             }
             have = bytes / sizeof(int16_t); offset = 0;
@@ -168,15 +192,13 @@ void Audio::decode() {
             queued_ += count; offset += count;
             draining_ = eof && offset == have;
             if (queued_ >= 4096 || eof) primed_ = true;
-            if (eof && have == offset && queued_ == 0) {
-                mode_ = Playback::Stopped; primed_ = false;
-            }
         }
-        const bool finished = generation_ == active && eof && mode_ == Playback::Stopped;
+        const bool finished = generation_ == active && eof && offset == have && queued_ == 0;
+        const bool empty = decodedFrames_ == 0;
         SDL_UnlockAudio();
-        if (finished) { report(active,"End of track"); mpg123_delete(decoder); decoder = nullptr; }
+        if (finished) { report(active, empty ? "MP3 contains no audio" : "End of track", empty ? AudioEnd::Failed : AudioEnd::Finished); close(); }
         nap();
     }
-    if (decoder) mpg123_delete(decoder);
+    close();
 }
 }

@@ -5,7 +5,7 @@
 #include <iomanip>
 
 namespace epub {
-Controller::Controller(Store& store, ReaderWorker& worker, const std::string& bookOverride) : store_(store), worker_(worker) {
+Controller::Controller(Store& store, ReaderWorker& worker, const std::string& bookOverride, MusicPort* music) : store_(store), worker_(worker), music_(music) {
     page.font = store.config.preferences.font; page.theme = store.config.preferences.theme;
     if (!bookOverride.empty()) open(absolutePath(bookOverride));
     else if (store.session.reader) {
@@ -27,6 +27,7 @@ void Controller::checkpoint() {
     store_.checkpoint(currentBook_); positionDirty_ = false;
 }
 void Controller::scan(bool retryErrors) {
+    if (music_) music_->endBook();
     worker_.restart(); screen_ = Screen::Library; transition_ = changed_ = true;
     libraryMenu = false; readerControls = {}; openPending_ = false;
     page = {}; currentBook_ = {}; positionDirty_ = false;
@@ -37,6 +38,7 @@ void Controller::scan(bool retryErrors) {
     status = "Scanning library";
 }
 void Controller::open(const std::string& path, const std::string& expected, bool resume) {
+    if (music_) music_->endBook();
     if (screen_ == Screen::Library) { catalog.remember(store_.session); cache(); }
     checkpoint(); worker_.restart();
     screen_ = Screen::Opening; transition_ = changed_ = true;
@@ -102,7 +104,7 @@ void Controller::receive(ReaderResult r) {
     if (!expectedIdentity_.empty() && r.identity != expectedIdentity_) { failOpen("Resume book changed; searching library"); return; }
     expectedIdentity_.clear(); resumeSearch_ = false;
     const bool opened = screen_ == Screen::Opening;
-    screen_ = Screen::Reader; if (opened) transition_ = true;
+    screen_ = Screen::Reader; if (opened) { transition_ = true; if (music_) music_->beginBook(); }
     page = std::move(r); status = page.message;
     auto& prefs = store_.config.preferences;
     if (prefs.font != page.font || prefs.theme != page.theme) {
@@ -123,6 +125,7 @@ void Controller::receive(ReaderResult r) {
 }
 void Controller::tick(uint32_t now) {
     now_ = now;
+    if (music_ && music_->tick()) changed_ = true;
     for (int n = 0; n < 16; ++n) { auto result = worker_.poll(); if (!result) break; receive(std::move(*result)); }
     if (const auto error = store_.error(); !error.empty()) { notice = error; changed_ = true; std::cerr << error << '\n'; }
     if (now_ - retrySince_ >= 1000) { store_.retryFailed(); retrySince_ = now_; }
@@ -179,13 +182,14 @@ void Controller::folderAction(Action a) {
         if (!chooserAvailable_) { notice = "Cannot select an unavailable folder"; return; }
         if (musicFolder_) store_.config.music = folderPath; else store_.config.books = folderPath;
         store_.saveConfig(); chooserPending_ = chooserMore_ = false; scan(false);
+        if (musicFolder_) notice = "Restart to apply music folder";
     } else if (folderRow == 1) enterFolder(parentPath(folderPath));
     else enterFolder(folders.at(static_cast<size_t>(folderRow - 2)).path);
 }
 void Controller::action(Action a) {
     if (a == Action::None) return;
     changed_ = true;
-    if (a == Action::Quit) { quit_ = true; return; }
+    if (a == Action::Quit) { requestQuit(); return; }
     if (screen_ == Screen::FolderChooser) { folderAction(a); return; }
     if (screen_ == Screen::Library) {
         resumeSearch_ = false; // Explicit library interaction supersedes automatic recovery.
@@ -196,12 +200,14 @@ void Controller::action(Action a) {
             if (a == Action::AShort) {
                 if (menuRow == 0) { resumeSearch_ = false; scan(true); }
                 else if (menuRow == 1 || menuRow == 2) chooseFolder(menuRow == 2);
-                else quit_ = true;
+                else requestQuit();
             }
             return;
         }
+        const auto before = catalog.current() ? catalog.current()->path : "";
         if (a == Action::Up || a == Action::Down) catalog.move(a == Action::Down ? 1 : -1);
         if (a == Action::Left || a == Action::Right) catalog.page(a == Action::Right ? 1 : -1);
+        if (music_ && catalog.current() && catalog.current()->path != before) music_->chirp();
         if (a == Action::L2 || a == Action::R2) {
             auto& theme = store_.config.preferences.theme; theme = (theme + (a == Action::R2 ? 1 : 5)) % 6; store_.saveConfig();
         }
@@ -213,7 +219,9 @@ void Controller::action(Action a) {
     if (wasOpen != readerControls.overlay()) transition_ = true;
     using E = ReaderEffect; using C = ReaderCommand;
     switch (control.effect) {
-    case E::Quit: quit_ = true; break;
+    case E::Quit: requestQuit(); break;
+    case E::MusicToggle: if (music_) music_->toggle(); break;
+    case E::MusicSkip: if (music_) music_->skip(); break;
     case E::Back:
         catalog.remember(store_.session); store_.session.reader = false; checkpoint(); scan(false); break;
     case E::Turn: submit({C::Turn, control.value}); break;
@@ -232,7 +240,9 @@ void Controller::action(Action a) {
 void Controller::consumeTransition(Input& input) {
     if (transition()) { input.consumeA(); input.consumeRepeat(); }
 }
+void Controller::requestQuit() { if (music_) music_->endBook(); quit_ = true; }
 void Controller::shutdown() {
+    if (music_) music_->endBook();
     if (screen_ == Screen::Library || screen_ == Screen::FolderChooser) { catalog.remember(store_.session); store_.session.reader = false; }
     checkpoint();
     if (page.anchor.empty()) store_.saveSession();

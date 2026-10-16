@@ -17,13 +17,24 @@ uint32_t clockMs() {
     return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
 }
 struct Harness {
+    struct FakeMusic : epub::MusicPort {
+        unsigned begins = 0, ends = 0, toggles = 0, skips = 0, chirps = 0, ticks = 0;
+        epub::MusicSnapshot state{epub::MusicScan::Ready, epub::Playback::Stopped, true, 5, 0, {}};
+        void beginBook() override { ++begins; state.playback = epub::Playback::Stopped; }
+        void endBook() override { ++ends; state.playback = epub::Playback::Stopped; }
+        void toggle() override { ++toggles; state.playback = state.playback == epub::Playback::Playing ? epub::Playback::Paused : epub::Playback::Playing; state.track = 2; }
+        void skip() override { ++skips; }
+        void chirp() override { ++chirps; }
+        bool tick() override { ++ticks; return false; }
+        epub::MusicSnapshot snapshot() const override { return state; }
+    } music;
     epub::Store store;
     epub::ReaderWorker worker;
     epub::Controller app;
     epub::Input input;
     uint32_t inputNow = 1000;
-    Harness(const std::string& root, const std::string& assets, const std::string& executable, const std::string& book = {})
-        : store(root, root + "/home"), worker(assets, root, executable), app(store, worker, book) {}
+    Harness(const std::string& root, const std::string& assets, const std::string& executable, const std::string& book = {}, epub::MusicPort* port = nullptr)
+        : store(root, root + "/home"), worker(assets, root, executable), app(store, worker, book, port ? port : &music) {}
     ~Harness() { app.shutdown(); }
     void dispatch(epub::Action action) { app.action(action); app.consumeTransition(input); }
     void key(SDLKey key, bool down) { dispatch(input.key(key, down, inputNow)); }
@@ -174,11 +185,110 @@ void jumpIntegration(const std::string& root, const std::string& assets, const s
         if (context == "font-busy") { h.tap(SDLK_DOWN); h.tap(SDLK_RIGHT); check(h.worker.busy(), "Quit font-busy setup"); }
         if (context == "jump" || context == "jump-busy") target(h, 50);
         if (context == "jump-busy") { h.tap(SDLK_a); check(h.worker.busy(), "Quit jump-busy setup"); }
+        h.music.state.playback = reverse ? epub::Playback::Paused : epub::Playback::Playing;
         h.key(reverse ? SDLK_RETURN : SDLK_ESCAPE, true); h.inputNow += 10;
         h.key(reverse ? SDLK_ESCAPE : SDLK_RETURN, true);
         check(h.app.quit(), "Quit chord unavailable in " + context);
+        check(h.music.state.playback == epub::Playback::Stopped, "Quit chord retained music in " + context);
     }
     std::cout << "PASS: production slider previews, hold/repeat/focus/chords, commits, cancellation, restart, completion and failure recovery\n";
+}
+void musicIntegration(const std::string& root, const std::string& folder, const std::string& assets, const std::string& executable, const std::string& shots) {
+    using namespace epub;
+    configure(root, folder);
+    { Store s(root, root + "/home"); s.config.music = folder; s.saveConfig(); s.flush(); }
+    {
+        Harness h(root, assets, executable); h.wait();
+        check(!h.music.chirps && !h.music.begins, "Indexing chirped or started a music session");
+        while (h.app.catalog.selected()) h.tap(SDLK_LEFT);
+        const auto baseline = h.music.chirps;
+        h.tap(SDLK_UP); check(h.music.chirps == baseline, "Clamped navigation chirped");
+        h.tap(SDLK_DOWN); check(h.music.chirps == baseline + 1, "Selection did not chirp once");
+        h.tap(SDLK_RIGHT); check(h.music.chirps == baseline + 2, "Page navigation did not chirp");
+        h.tap(SDLK_x); const auto chirps = h.music.chirps;
+        h.tap(SDLK_DOWN); h.tap(SDLK_b); check(h.music.chirps == chirps, "Menu navigation chirped");
+        h.select(folder + "/Book 3.epub");
+        h.tap(SDLK_a); check(h.app.screen() == Screen::Opening && !h.music.toggles, "Opening A started music");
+        h.key(SDLK_a, true); h.wait(); h.key(SDLK_a, false);
+        check(h.music.begins == 1 && !h.music.toggles, "Held opening A leaked to reader");
+        h.key(SDLK_a, true); check(!h.music.toggles, "Short A acted on keydown");
+        h.inputNow += 40; h.key(SDLK_a, false); check(h.music.toggles == 1, "Short A did not toggle music");
+        h.key(SDLK_a, true); h.inputNow += 599; h.dispatch(h.input.tick(h.inputNow)); check(!h.music.skips, "Early skip");
+        ++h.inputNow; h.dispatch(h.input.tick(h.inputNow)); h.inputNow += 700; h.dispatch(h.input.tick(h.inputNow)); h.key(SDLK_a, false);
+        check(h.music.skips == 1 && h.music.toggles == 1, "Long A repeated or toggled on release");
+        h.key(SDLK_a, true); h.tap(SDLK_x); h.key(SDLK_a, false);
+        h.tap(SDLK_DOWN); h.tap(SDLK_a); h.dispatch(Action::ALong);
+        check(h.music.toggles == 1 && h.music.skips == 1, "Popup A leaked to music");
+        h.tap(SDLK_RIGHT); check(h.worker.busy(), "Font job not busy"); h.tap(SDLK_b);
+        h.tap(SDLK_a); const auto ticks = h.music.ticks; h.app.tick(clockMs());
+        check(h.music.toggles == 2 && h.music.ticks > ticks, "Reader work blocked music dispatch/tick"); h.wait();
+        check(h.music.begins == 1, "Font results reset music session");
+        target(h, 50); h.dispatch(Action::ALong); h.tap(SDLK_a); h.wait();
+        check(h.music.toggles == 2 && h.music.skips == 1 && h.music.begins == 1, "Jump A leaked or reset music");
+        h.tap(SDLK_ESCAPE); h.key(SDLK_a, true); h.tap(SDLK_b); h.key(SDLK_a, false);
+        check(h.music.toggles == 2, "Held overlay close A leaked");
+        h.key(SDLK_a, true); h.input.reset(); h.key(SDLK_a, false); check(h.music.toggles == 2, "Focus reset toggled music");
+        Canvas c; renderApplication(c, h.app);
+        check(std::equal(c.pixels.begin(), c.pixels.begin() + 478 * 320, h.app.page.pixels.begin()), "Music added normal reading overlay");
+        for (size_t theme = 0; theme < palettes.size(); ++theme) {
+            h.store.config.preferences.theme = static_cast<int>(theme);
+            h.music.state.count = 9999; h.music.state.track = 8888; h.music.state.playback = Playback::Playing;
+            h.app.readerControls.showMenu(); renderApplication(c, h.app); checkBar(c, h.app.page, static_cast<int>(theme));
+            c.saveBmp(shots + "/music-" + palettes[theme].name + "-playing.bmp");
+        }
+        h.store.config.preferences.theme = 0;
+        for (const std::string state : {"paused", "stopped", "scanning", "empty", "failed", "unavailable"}) {
+            h.music.state = {MusicScan::Ready, Playback::Paused, true, 24, 7, {}};
+            if (state == "stopped") h.music.state.playback = Playback::Stopped;
+            if (state == "scanning") h.music.state.scan = MusicScan::Scanning;
+            if (state == "empty") h.music.state.scan = MusicScan::Empty;
+            if (state == "failed") { h.music.state.scan = MusicScan::Failed; h.music.state.detail = "Music folder: unavailable"; }
+            if (state == "unavailable") { h.music.state.available = false; h.music.state.detail = "Audio device unavailable"; }
+            renderApplication(c, h.app); checkBar(c, h.app.page, 0); c.saveBmp(shots + "/music-" + state + ".bmp");
+        }
+        h.music.state.detail = "No playable tracks; restart to retry";
+        h.app.notice = "SAVE ERROR: retain priority"; renderApplication(c, h.app); c.saveBmp(shots + "/music-save-error.bmp");
+        h.app.notice.clear(); h.app.readerControls.closeOverlay();
+        h.back(); check(h.music.state.playback == Playback::Stopped, "Back to list did not stop music");
+        h.tap(SDLK_x); h.tap(SDLK_DOWN); h.tap(SDLK_DOWN); h.tap(SDLK_a); h.wait();
+        h.tap(SDLK_a); h.wait();
+        check(h.app.notice == "Restart to apply music folder" && h.store.config.music == folder && h.music.begins == 1,
+            "Music folder commit lost restart notice or restarted music");
+        h.open(folder + "/Book 3.epub"); check(h.music.begins == 2 && h.music.state.playback == Playback::Stopped, "Reopen auto-started music");
+        h.tap(SDLK_a);
+    }
+    {
+        Harness h(root, assets, executable); h.wait();
+        check(h.music.begins == 1 && !h.music.toggles && h.music.state.playback == Playback::Stopped, "Resume auto-started music");
+        h.tap(SDLK_a); h.key(SDLK_RETURN, true); h.key(SDLK_ESCAPE, true);
+        check(h.app.quit() && h.music.state.playback == Playback::Stopped, "Quit did not immediately stop music");
+    }
+    std::cout << "PASS: production music input/lifecycle/chirps, busy-reader controls, overlays and native popup snapshots\n";
+}
+void liveMusic(const std::string& root, const std::string& fixtures, const std::string& assets, const std::string& executable) {
+    using namespace epub;
+    check(SDL_Init(SDL_INIT_TIMER) == 0, "Live music SDL init");
+    struct Guard { ~Guard() { SDL_Quit(); } } guard;
+    Audio audio; Music music(audio, fixtures, 15);
+    Harness h(root, assets, executable, assets + "/books/prose-epub3.epub", &music); h.wait();
+    const auto scanSince = SDL_GetTicks();
+    while (music.snapshot().scan == MusicScan::Scanning && SDL_GetTicks() - scanSince < 4000) { h.app.tick(clockMs()); SDL_Delay(1); }
+    check(music.snapshot().scan == MusicScan::Ready, "Live startup catalog");
+    h.tap(SDLK_a); h.app.tick(clockMs());
+    const auto first = audio.status().generation;
+    for (int n = 0; n < 12; ++n) { h.tap(SDLK_RIGHT); h.wait(); }
+    h.tap(SDLK_x); h.tap(SDLK_DOWN); h.tap(SDLK_RIGHT); h.wait();
+    check(music.snapshot().playback == Playback::Playing, "Font popup stopped live music"); h.tap(SDLK_b);
+    target(h, 60); h.tap(SDLK_a); h.wait();
+    const auto since = SDL_GetTicks();
+    while ((SDL_GetTicks() - since < 1500 || !audio.status().playedFrames) && SDL_GetTicks() - since < 4000) { h.app.tick(clockMs()); SDL_Delay(2); }
+    check(audio.status().generation > first + 2 && audio.status().playedFrames > 0, "Reader work stalled automatic MP3 continuation");
+    h.tap(SDLK_RIGHT); h.tap(SDLK_a); h.wait();
+    check(music.snapshot().playback == Playback::Paused, "Busy reader could not pause live music");
+    const auto requests = h.app.page.requestId;
+    h.back(); check(audio.status().playback == Playback::Stopped && audio.status().queuedFrames == 0, "List retained live PCM");
+    h.app.tick(clockMs()); check(music.snapshot().playback == Playback::Stopped, "Late EOF restarted list playback");
+    const auto s = audio.status(); std::cout << "LIVE MUSIC reader request=" << requests << " output=" << s.frequency << '/' << s.channels << " underruns=" << s.underruns << '\n';
 }
 }
 int main(int argc, char** argv) {
@@ -193,6 +303,8 @@ int main(int argc, char** argv) {
         std::ofstream(folder + "/broken.epub") << "not ZIP";
         for (int n = 0; n < 22; ++n) copy(fixtures + "/one-page.epub", folder + "/copy " + std::to_string(n) + ".epub");
         configure(state, folder);
+        musicIntegration(root + "/music-state", folder, assets, executable, shots);
+        liveMusic(root + "/live-music-state", fixtures, assets, executable);
         std::string anchor, id2, id3; int pageNumber = 0;
         epub::Canvas canvas;
         auto shot = [&](Harness& h, const std::string& name) { epub::renderApplication(canvas, h.app); canvas.saveBmp(shots + '/' + name + ".bmp"); };

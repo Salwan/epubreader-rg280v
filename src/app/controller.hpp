@@ -2,12 +2,14 @@
 #include "library/catalog.hpp"
 #include "reader/worker.hpp"
 #include "ui/reader_controls.hpp"
+#include "audio/music.hpp"
 
 namespace epub {
 enum class Screen { Library, Opening, Reader, FolderChooser };
 class Controller {
     Store& store_;
     ReaderWorker& worker_;
+    MusicPort* music_;
     Screen screen_ = Screen::Library;
     bool changed_ = true, transition_ = false, quit_ = false;
     bool scanPending_ = false, more_ = false, enumerationDone_ = false, indexDone_ = false, retryErrors_ = false;
@@ -30,6 +32,7 @@ class Controller {
     void chooseFolder(bool music);
     void enterFolder(const std::string& path);
     void folderAction(Action action);
+    void requestQuit();
 public:
     Catalog catalog;
     ReaderResult page;
@@ -38,7 +41,8 @@ public:
     std::vector<LibraryEntry> folders;
     bool libraryMenu = false;
     int menuRow = 0, folderRow = 0, folderTop = 0;
-    Controller(Store& store, ReaderWorker& worker, const std::string& bookOverride = {});
+    Controller(Store& store, ReaderWorker& worker, const std::string& bookOverride = {}, MusicPort* music = nullptr);
+    MusicSnapshot music() const { return music_ ? music_->snapshot() : MusicSnapshot{}; }
     void action(Action action);
     void tick(uint32_t now);
     void shutdown();

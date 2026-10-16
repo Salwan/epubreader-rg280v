@@ -45,6 +45,10 @@ ReaderControl ReaderControls::handle(Action action, int font, int theme, bool bu
         }
         return {};
     }
+    if (page && !page->pixels.empty()) {
+        if (action == Action::AShort) return {ReaderEffect::MusicToggle};
+        if (action == Action::ALong) return {ReaderEffect::MusicSkip};
+    }
     if (busy) return {};
     if (action == Action::Select && page && page->validNavigation() && !page->pixels.empty()) {
         originPage_ = page->page; pageCount_ = page->pageCount;

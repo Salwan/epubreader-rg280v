@@ -1,6 +1,7 @@
 #pragma once
 #include "storage/state.hpp"
 #include <alsa/asoundlib.h>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -11,6 +12,15 @@ struct MixerLevel {
     long minimum = 0, maximum = 0, left = 0, right = 0;
     int switchLeft = -1, switchRight = -1;
     int percent() const;
+    MixerLevel restored(const State& saved) const;
+    bool checkpoint(State& state) const;
+};
+class VolumeCheckpoint {
+    bool dirty_ = false;
+    uint32_t since_ = 0;
+public:
+    void observe(const MixerLevel* level, State& preferences, uint32_t now);
+    bool due(uint32_t now);
 };
 class Mixer {
     snd_mixer_t* handle_ = nullptr;
@@ -26,7 +36,7 @@ public:
     Mixer& operator=(const Mixer&) = delete;
     bool poll();
     void select(int delta);
-    void checkpoint(State& state) const;
+    bool checkpoint(State& state) const;
     const std::vector<MixerLevel>& levels() const { return levels_; }
     const MixerLevel* selected() const;
     unsigned changes() const { return changes_; }

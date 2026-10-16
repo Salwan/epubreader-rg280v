@@ -3,7 +3,8 @@
 
 namespace epub {
 void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
-                       const ReaderControls& controls, bool busy, const std::string& status) {
+                       const ReaderControls& controls, bool busy, const std::string& status,
+                       const MusicSnapshot& music) {
     const auto& palette = palettes[static_cast<size_t>(theme)];
     canvas.clear(palette.background);
     if (page.pixels.size() == canvas.pixels.size()) canvas.pixels = page.pixels;
@@ -19,12 +20,12 @@ void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
     auto line = [&](int y, const std::string& text) { canvas.text(10, y, bitmapLine(text, 50), palette.text); };
     if (controls.menuOpen() || page.pixels.empty()) {
         panel(8, 154);
-        line(18, "EPUB READER " EPUBREADER_VERSION " / MILESTONE 4");
+        line(18, "EPUB READER " EPUBREADER_VERSION " / MILESTONE 5");
         line(44, page.title.empty() ? "OPENING BOOK" : page.title);
         line(64, page.author);
         line(86, page.path.substr(page.path.find_last_of('/') + 1));
         line(110, "PAGE " + std::to_string(page.page + 1) + " / " + std::to_string(page.pageCount) + " / " + palette.name);
-        line(138, "JOB " + std::to_string(page.elapsedMs) + "MS / PAGE CACHE " + (page.pageCacheHit ? "HIT" : "MISS"));
+        line(138, music.label());
     }
     if (controls.menuOpen()) {
         panel(180, 210);
@@ -62,10 +63,10 @@ void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
         line(418, "A: JUMP   B/SELECT: CANCEL");
         line(440, "X: MENU   SELECT+START: SAVE AND EXIT");
         if (!status.empty()) { panel(270, 34); line(280, status); }
-    } else if (busy || !status.empty()) {
+    } else if (busy || !status.empty() || (controls.menuOpen() && !music.detail.empty())) {
         panel(404, 64);
         line(412, busy ? "READER WORKING / SELECT+START EXITS" : "READER STATUS");
-        line(438, status);
+        line(438, status.empty() ? music.detail : status);
     }
     canvas.rect(0, 478, 320, 2, palette.background);
     canvas.rect(0, 478, 320 * std::clamp(page.progress, 0, 10000) / 10000, 2, palette.muted);

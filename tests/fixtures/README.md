@@ -27,3 +27,13 @@ ffmpeg -f lavfi -i color=c=0x2850b4:s=96x96 -frames:v 1 -q:v 2 tests/fixtures/bl
 
 The test suite also creates missing/malformed books, changed/renamed copies,
 invalid bookmarks, and interrupted document caches in its isolated build tree.
+
+## Original music fixtures
+
+`python3 scripts/generate-audio-fixtures.py` (ffmpeg/libmp3lame) creates three
+quiet 0.30-second sine/fade MP3s: `short-stereo.mp3` (44100 Hz stereo),
+`short-mono.mp3` (22050 Hz mono), and `short-48k.mp3` (48000 Hz stereo).
+They are original GPL-2.0-or-later project material. Checked-in bytes avoid a
+test/build dependency on the encoder; a different ffmpeg version may change them.
+They exercise real output conversion, EOF drain, and automatic shuffle cycles.
+The OPK does not include these test fixtures.

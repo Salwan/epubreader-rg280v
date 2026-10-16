@@ -5,7 +5,7 @@
 namespace epub {
 enum class ReaderMenuItem { Back, FontSize, Exit };
 enum class ReaderOverlay { None, Menu, Jump };
-enum class ReaderEffect { None, Refresh, Quit, Turn, Font, Theme, Back, Jump };
+enum class ReaderEffect { None, Refresh, Quit, Turn, Font, Theme, Back, Jump, MusicToggle, MusicSkip };
 struct ReaderControl { ReaderEffect effect = ReaderEffect::None; int value = 0; };
 class ReaderControls {
     ReaderOverlay overlay_ = ReaderOverlay::None;

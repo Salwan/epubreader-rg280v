@@ -424,7 +424,10 @@ previews, overlay/input arbitration, native-pixel verification, and M4 delivery.
 
 ### Milestone 5 — Integrated music
 
-**Implementation status:** planned from accepted M4 `0.4.0`.
+**Implementation status:** implemented in `0.5.0` from accepted M4 `0.4.0`;
+host/build verification is complete and the OPK is ready for device evaluation.
+See [M5 verification](docs/VERIFICATION-M5.md)
+and the [device audio checklist](docs/DEVICE-TEST-M5.md).
 
 **Detailed implementation plan:** [Milestone 5 plan](docs/PLAN-M5.md), covering
 startup-only discovery, per-book shuffle sessions, generation-safe audio events,

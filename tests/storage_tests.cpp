@@ -95,6 +95,23 @@ int main(int argc, char** argv) {
             } catch (const std::exception&) { complete = false; }
         } while (writing);
         replacement.join(); check(complete, "Atomic reader mixed old/new file inodes");
+        {
+            epub::Store s(root + "/volume", root);
+            s.config.preferences.mixer = "PCM,0"; s.config.preferences.maximum = 31;
+            s.config.preferences.rawLeft = 18; s.config.preferences.rawRight = 17; s.config.preferences.volume = 58;
+            s.config.preferences.theme = 5; s.config.preferences.font = 2; s.config.music = root + "/Music with spaces";
+            epub::ensureDirectory(root + "/volume/config.json.tmp"); s.saveConfig(); s.flush();
+            check(!s.error().empty(), "Volume save failure was not reported");
+            std::filesystem::remove_all(root + "/volume/config.json.tmp");
+            s.config.preferences.rawLeft = 20; s.config.preferences.volume = 64; s.config.preferences.theme = 4;
+            s.saveConfig(); s.retryFailed(); s.flush(); check(s.error().empty(), "Volume save retry failed");
+        }
+        {
+            epub::Store s(root + "/volume", root); const auto& p = s.config.preferences;
+            check(p.mixer == "PCM,0" && p.maximum == 31 && p.rawLeft == 20 && p.rawRight == 17 && p.volume == 64,
+                "Newest raw volume snapshot was not durable");
+            check(p.theme == 4 && p.font == 2 && s.config.music == root + "/Music with spaces", "Volume save lost unrelated preferences");
+        }
         std::cout << "PASS: versioned production state, migration, save ordering, interrupted writes, schema recovery\n";
         return 0;
     } catch (const std::exception& e) { std::cerr << "FAIL: " << e.what() << '\n'; return 1; }

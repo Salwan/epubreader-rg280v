@@ -1,4 +1,4 @@
-# Building the Milestone 4 reader
+# Building the Milestone 5 reader
 
 ## Host prerequisites (Fedora 42, x86_64 Linux)
 
@@ -30,8 +30,8 @@ archives, extracts and relocates the SDK under
 builds, audits the ELF and full shared-library dependency closure, and packages:
 
 ```text
-dist/epubreader-m4-0.4.0.opk
-dist/epubreader-m4-0.4.0.opk.sha256
+dist/epubreader-m5-0.5.0.opk
+dist/epubreader-m5-0.5.0.opk.sha256
 ```
 
 The engine and hashing library are built statically. Rendering features are
@@ -57,12 +57,12 @@ Package timestamps and compile-time content do not depend on the wall clock.
 ```sh
 export OD_SDK="$PWD/third_party/sdk/gcw0-toolchain"
 export SOURCE_DATE_EPOCH=1663804800
-cmake -S . -B build/repro-m4 -G Ninja \
+cmake -S . -B build/repro-m5 -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/rg280v.cmake \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build/repro-m4 --parallel 4
-python3 scripts/package.py --build build/repro-m4 --output dist/repro-m4.opk
-cmp dist/epubreader-m4-0.4.0.opk dist/repro-m4.opk
+cmake --build build/repro-m5 --parallel 4
+python3 scripts/package.py --build build/repro-m5 --output dist/repro-m5.opk
+cmp dist/epubreader-m5-0.5.0.opk dist/repro-m5.opk
 ```
 
 The pinned SDK and squashfs-tools version are part of reproducibility. ELF and
@@ -104,6 +104,22 @@ session. Defaults are `$HOME/books` and `$HOME/music`; **X → Books folder / Mu
 folder** configures them. `--books-dir DIR` and `--music-dir DIR` also override
 and save these settings. All paths can contain spaces; quote shell arguments.
 
+MP3 discovery runs once at startup on a cancellable scanner thread, using the
+configured/overridden music path. Music-folder changes in the app apply on the
+next launch. Brief reader A starts/pauses/resumes; a 600 ms hold skips once, stays
+paused when paused, and does nothing while stopped. Each book starts stopped;
+Back stops and discards its playlist. Music continues under overlays and reader
+work; overlay A is consumed by its own action. The popup shows a stable sorted
+catalog track number/count and playback state. Failed tracks are excluded until
+restart; an exhausted catalog stops cleanly. Books List selection changes chirp.
+
+On device, `PCM,0` is preferred and restored once, then observed/persisted through
+the production config. Physical volume keys remain firmware-owned. Host preview
+defaults to observation-only and retains saved device mixer preferences. Options
+`--mixer-card CARD`, `--restore-mixer`, and `--observe-only` support explicit mixer
+testing. Smoke mode never opens/restores a hardware mixer; dummy SDL audio is used
+by automated audio checks. Mixer errors do not disable an otherwise working reader.
+
 List controls: Up/Down selects (with repeat), Left/Right pages, brief A opens,
 E/R changes theme, and X opens settings/rescan/exit. Reader controls: Left/Right
 or Q/W turns pages; E/R changes theme; X opens the popup. The first row returns
@@ -127,7 +143,7 @@ build/host/epubreader --assets "$PWD/assets" \
     --state-dir "$PWD/tmp/manual-library-state" --books-dir "$PWD/assets/books"
 ```
 
-CTest has **seven checks**, using isolated build-local state and dummy SDL
+CTest has **eight checks**, using isolated build-local state and dummy SDL
 video/audio where needed. Production storage checks exercise migration, schemas,
 atomic replacement, failed saves/retry, and book-before-session ordering. Library
 checks cover discovery/signatures/cache, duplicates, deterministic 1,000-entry
@@ -138,9 +154,20 @@ folder settings, font controls, cancellation, and native scrollbar/text renderin
 M4 additionally exercises production Input → Controller dispatch, slider origin/
 endpoint previews, short/long A, repeat/focus/tick-wrap behavior, both quit-chord
 orders in nine screen/overlay/work contexts, single-request commits, immediate
-restart, canceled work, sticky completion, and worker-failure recovery. It emits
-32 native BMPs under `build/host/library-screenshots/`, including all six themes'
+restart, canceled work, sticky completion, and worker-failure recovery. Those M4
+scenarios emit 32 native BMPs under `build/host/library-screenshots/`, including all six themes'
 list/menu/chooser and slider/long-metadata/notice specimens.
+
+M5 adds `music-core`: fixed-seed shuffle/permutation and failure-exhaustion tests,
+startup discovery/symlinks/cancellation, real mono/stereo/22050/44100/48000 Hz
+conversion and tail drain, silent paused skips, stale-event suppression, pause /
+stop races with EOF, and volume restoration/debounce decisions. Production
+controller checks use a counting fake for input arbitration and real music with
+the child reader for continued EOF transitions during page/font/jump work. They
+add 13 music popup BMPs, including all six themes and error/unavailable states.
+Production reader smoke plays actual PCM and exercises paused skip, adding
+`music-paused.bmp`. Storage checks cover failed volume saves and preserving the
+latest mixer/theme/font/folder values through retry/restart.
 
 The reader tests
 check EPUB 2/3 metadata and spine order, every numbered text token across page
@@ -151,8 +178,9 @@ document and neighbor-image cache hits, interrupted-cache rebuilding, framed IPC
 and bounded worker cancellation. Popup checks cover font-only adjustment,
 clamped endpoints, busy-reader input arbitration, and held-key consumption across
 overlay transitions. Reader smoke uses the production popup dispatch path and
-produces 43 native BMPs under `build/host/reader-screenshots/` (three fonts, three
-font-row selections, and each theme's reading/menu plus four slider targets).
+produces 44 native BMPs under `build/host/reader-screenshots/` (three fonts, three
+font-row selections, each theme's reading/menu plus four slider targets, the
+warm2 information popup, and the M5 paused-music popup).
 Reader checks exercise all 101 layout-derived targets for each EPUB 2/3 specimen
 and the one-page book, codec roundtrips/malformed navigation data, and map
 stability through font/theme work. Preview maps use rendered document height,
@@ -187,7 +215,9 @@ cross-build/ELF/package audits here and actual RG280V testing by the user.
   original 5×14 native UI bitmap glyphs and six palettes.
 - `src/platform/`: SDL semantic mapping/timing, passive evdev observation (no
   grab), ALSA inventory/observation and one startup-restore path.
-- `src/audio/`: mpg123 worker, bounded PCM ring, precomputed chirp, SDL callback.
+- `src/audio/`: mpg123 worker, bounded PCM ring, typed generation-tagged terminal
+  events, precomputed chirp/SDL callback, once-per-run scanner, shuffle model, and
+  main-thread per-book music facade.
 - `src/storage/`: versioned diagnostic state, production JSON config/session/book
   records, slice migration, and a serialized atomic-write/retry queue.
 - `src/library/`: shared content fingerprints, batched nonrecursive discovery,
@@ -215,9 +245,10 @@ platform diagnostic from a current target build, use
 `python3 scripts/package.py --diagnostic`. The accepted historical M1 artifacts
 and test records retain their original versions.
 
-See [DEVICE-TEST-M4.md](DEVICE-TEST-M4.md) for installation and device acceptance,
+See [DEVICE-TEST-M5.md](DEVICE-TEST-M5.md) for installation and audio acceptance,
 [CONTROLS.md](CONTROLS.md) for controls, and
-[VERIFICATION-M4.md](VERIFICATION-M4.md) for the verified artifact/checks.
+[VERIFICATION-M5.md](VERIFICATION-M5.md) for M5 artifact/checks.
+[DEVICE-TEST-M4.md](DEVICE-TEST-M4.md) preserves the accepted interface milestone.
 [DEVICE-TEST-M3.md](DEVICE-TEST-M3.md) preserves the accepted library milestone.
 [DEVICE-TEST.md](DEVICE-TEST.md) records the passed original on-device platform
 acceptance; [DEVICE-TEST-0.1.1.md](DEVICE-TEST-0.1.1.md) covers its visual follow-up.

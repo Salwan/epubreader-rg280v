@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--diagnostic", action="store_true", help="Package the original platform diagnostic instead")
     args = parser.parse_args()
     version = re.search(r"project\(epubreader VERSION ([\d.]+)", (ROOT / "CMakeLists.txt").read_text()).group(1)
-    package_name = f"epubreader-diagnostic-m1-{version}" if args.diagnostic else f"epubreader-m4-{version}"
+    package_name = f"epubreader-diagnostic-m1-{version}" if args.diagnostic else f"epubreader-m5-{version}"
     build, output = args.build.resolve(), (args.output or ROOT / "dist" / (package_name + ".opk")).resolve()
     # Only generated, project-local staging/output directories may be modified.
     build.relative_to(ROOT); output.relative_to(ROOT)
@@ -90,7 +90,7 @@ def main():
     shutil.copytree(notices, stage / "licenses")
     desktop = "epubreader-diagnostic.gcw0.desktop" if args.diagnostic else "epubreader.gcw0.desktop"
     launcher = "launch.sh" if args.diagnostic else "launch-reader.sh"
-    checklist = "DEVICE-TEST-0.1.1.md" if args.diagnostic else "DEVICE-TEST-M4.md"
+    checklist = "DEVICE-TEST-0.1.1.md" if args.diagnostic else "DEVICE-TEST-M5.md"
     for source, target in (("LICENSE.md", "LICENSE.md"), ("third_party/README.md", "licenses/DEPENDENCIES.md"), ("third_party/manifest.json", "dependencies.json"), ("docs/" + checklist, "DEVICE-TEST.txt"), ("packaging/" + desktop, desktop), ("packaging/" + launcher, "launch.sh"), ("packaging/epubreader.png", "epubreader.png")):
         shutil.copyfile(ROOT / source, stage / target)
     if not args.diagnostic:

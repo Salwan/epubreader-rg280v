@@ -5,6 +5,26 @@ Would be awesome if I can read epub books on my RG280V.
 
 ## Implementation status
 
+**Milestone 5: integrated music `0.5.0` is ready for RG280V evaluation.**
+
+Host Debug and ASan/UBSan checks pass **8/8** each; independent MIPS builds produce
+byte-identical OPKs. Device audio acceptance is pending the user's checklist.
+
+The production reader now has startup-only MP3 discovery, per-book shuffle
+playback, automatic continuation, brief A play/pause/resume, held A skip,
+physical-volume persistence, Books List navigation chirps, and compact popup
+track information. Every newly opened/resumed book starts with music stopped;
+returning to the list stops it. Music-folder changes apply on the next launch.
+
+- Build: `bash scripts/build-opk.sh`
+- Artifact: `dist/epubreader-m5-0.5.0.opk`
+- [Controls](docs/CONTROLS.md)
+- [M5 installation and audio acceptance checklist](docs/DEVICE-TEST-M5.md)
+- [M5 verification](docs/VERIFICATION-M5.md)
+- [M5 implementation plan](docs/PLAN-M5.md)
+
+### Accepted interface milestone
+
 **Milestone 4: accepted on RG280V / Adam v2.1 with version `0.4.0`.**
 
 The user tested M4 and confirmed that all features are operational and correct.
@@ -26,13 +46,6 @@ While reading, **Select** opens the slider. Left/Right adjusts −/+1%; Up/Down
 adjusts +/−10%; brief A jumps; B/Select cancels; X cancels and opens the popup.
 Preview leaves the page and progress bar untouched. Select+Start saves/exits
 everywhere. All M4 features have been verified by the user on the device.
-
-### Next milestone: integrated music
-
-[Milestone 5 implementation plan](docs/PLAN-M5.md) targets version `0.5.0`:
-startup-only MP3 discovery, per-book shuffle playback, brief/held A controls,
-physical-volume persistence, list-navigation chirps, and compact popup track
-information. M5 is planned; the accepted build remains M4 `0.4.0`.
 
 ### Previous library milestone
 
@@ -131,6 +144,7 @@ The initial reading target is English-language prose in unprotected, reflowable 
 * EPUB books are found in `$HOME/books` by default.
 * MP3 music is found in `$HOME/music` by default.
 * Both folder paths can be changed in the app settings.
+* Music-folder changes take effect on the next launch, preserving startup-only scanning.
 * Settings, reading positions, completion status, and resume state are saved under `$HOME/.epubreader/`.
 * On a fresh launch, the app opens the Books List. If the app was exited while reading, the next launch resumes that book at its last saved position. If it was exited from the Books List, the app returns to the list.
 
