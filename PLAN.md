@@ -375,6 +375,10 @@ annotated acceptance remains in `docs/DEVICE-TEST-M2.md`; focused follow-up is
 
 ### Milestone 3 — Library and persistence
 
+**Detailed implementation plan:** [Milestone 3 plan](docs/PLAN-M3.md), covering
+production storage and slice migration, asynchronous metadata indexing, library
+identity/selection, startup sessions, the usable books-list slice, and verification.
+
 **Deliverables:**
 
 - Folder scanning and metadata caching.

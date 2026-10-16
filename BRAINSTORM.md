@@ -40,4 +40,5 @@
 Ideas for the future after epubreader is complete:
 
 * add support for azw3 (KF8) format as the second ebook format (there's already opensource projects that implement support for it)
+* add support for mobi which is an older amazon format
 * implement a method to allow interacting with hyperlinks in the book that lead to a page/section within the book itself (not external links), adding a mouse cursor mode solely for clicking a hyperlink the way to go, perhaps can be activated by holding a button
