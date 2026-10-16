@@ -29,6 +29,9 @@ and use Left/Right to adjust it while preserving the text anchor. L2/R2 changes
 theme; Select+Start saves/exits everywhere. On first upgrade, M2 preferences and
 bookmarks are imported; subsequent launches restore the production session.
 
+**Next milestone:** [Milestone 4 — Complete interface plan](docs/PLAN-M4.md),
+covering the jump slider, complete overlay/input behavior, and visual verification.
+
 ### Previous rendering milestone
 
 **Milestone 2: accepted on RG280V / Adam v2.1 with version 0.2.0.**

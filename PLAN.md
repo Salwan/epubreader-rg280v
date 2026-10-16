@@ -399,6 +399,10 @@ identity/selection, startup sessions, the usable books-list slice, and verificat
 
 ### Milestone 4 — Complete interface
 
+**Detailed implementation plan:** [Milestone 4 plan](docs/PLAN-M4.md), based on
+the accepted M3 interface. It covers the jump slider, layout-derived target
+previews, overlay/input arbitration, native-pixel verification, and M4 delivery.
+
 **Deliverables:**
 
 - Bitmap books list.
