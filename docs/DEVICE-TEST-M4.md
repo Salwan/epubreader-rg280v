@@ -1,7 +1,15 @@
 # Milestone 4 device test — EPUB Reader 0.4.0
 
 Target: **RG280V / Adam v2.1**. Implementation/host verification are recorded in
-[VERIFICATION-M4.md](VERIFICATION-M4.md). **Device acceptance is pending.**
+[VERIFICATION-M4.md](VERIFICATION-M4.md).
+
+**Result: Milestone 4 accepted with version `0.4.0`.** The user tested M4 and
+confirmed that all features are operational and correct:
+
+> I have tested Milestone 4 and can confirm all features are operational and correct. Good job! Milestone 4 is verified.
+
+The detailed checklist below is retained as a scenario reference; acceptance is
+recorded by the user's overall feature-verification confirmation above.
 
 ## Install and compatibility
 

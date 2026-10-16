@@ -5,7 +5,10 @@ Would be awesome if I can read epub books on my RG280V.
 
 ## Implementation status
 
-**Milestone 4: implemented with version `0.4.0`; ready for RG280V evaluation.**
+**Milestone 4: accepted on RG280V / Adam v2.1 with version `0.4.0`.**
+
+The user tested M4 and confirmed that all features are operational and correct.
+The acceptance record is in [DEVICE-TEST-M4.md](docs/DEVICE-TEST-M4.md).
 
 The complete interface adds a Select-operated jump slider with layout-derived
 target page previews, one-request confirmation, exact-origin cancellation, and
@@ -22,7 +25,7 @@ held-input/overlay arbitration. It preserves M3 settings and bookmarks.
 While reading, **Select** opens the slider. Left/Right adjusts −/+1%; Up/Down
 adjusts +/−10%; brief A jumps; B/Select cancels; X cancels and opens the popup.
 Preview leaves the page and progress bar untouched. Select+Start saves/exits
-everywhere. On-device acceptance is pending the user's results.
+everywhere. All M4 features have been verified by the user on the device.
 
 ### Previous library milestone
 

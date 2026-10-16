@@ -1,10 +1,11 @@
 # Milestone 4 — Complete interface implementation plan
 
-**Status:** implemented with version `0.4.0`, based on the accepted M3 `0.3.0`
-baseline. See [verification](VERIFICATION-M4.md) and the
-[device checklist](DEVICE-TEST-M4.md); RG280V acceptance is pending. The design
-below records the implementation baseline. The compact slider model remains in
-`ReaderControls`; production/test dispatch shares `Controller::consumeTransition`.
+**Status:** accepted on RG280V / Adam v2.1 with version `0.4.0`, following the
+user's confirmation that all M4 features are operational and correct. See
+[verification](VERIFICATION-M4.md) and the [device acceptance record](DEVICE-TEST-M4.md).
+The design below records the implementation baseline, built on accepted M3
+`0.3.0`. The compact slider model remains in `ReaderControls`; production/test
+dispatch shares `Controller::consumeTransition`.
 
 **Target deliverable:** `dist/epubreader-m4-0.4.0.opk`, its SHA256 file, a complete
 control reference, host verification, and an RG280V acceptance checklist.

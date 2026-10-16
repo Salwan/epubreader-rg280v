@@ -8,9 +8,12 @@ dist/epubreader-m4-0.4.0.opk
 SHA256: 5b170390925f95319c7704c2c0f389d3a4d4aa1c5eb14ab46df7310359e1a802
 ```
 
-**M4 is implemented and ready for RG280V / Adam v2.1 evaluation. Device acceptance
-is pending.** Install and report results using [DEVICE-TEST-M4.md](DEVICE-TEST-M4.md).
-The full control reference is [CONTROLS.md](CONTROLS.md); both are in the OPK.
+**Milestone 4 is accepted on RG280V / Adam v2.1 with version `0.4.0`.** The user
+tested M4 and confirmed that all features are operational and correct; see the
+[device acceptance record](DEVICE-TEST-M4.md). The full control reference is
+[CONTROLS.md](CONTROLS.md). The delivered OPK contains the original device
+checklist and control reference; this subsequent acceptance is recorded in the
+repository documentation.
 
 ## Build and package checks
 
@@ -129,5 +132,12 @@ The final recorded Debug run, concurrent with other builds, reported:
 | Worker terminate/reap | 5 ms; existing automated bound is below 500 ms |
 
 These timings exclude display presentation where stated and are host observations,
-not device performance claims. Actual RG280V controls, suspend behavior, colors,
-overlay readability, and perceived responsiveness remain for user acceptance.
+not device performance measurements.
+
+## Device acceptance
+
+The user tested Milestone 4 on RG280V / Adam v2.1 and confirmed that all features
+are operational and correct, explicitly marking **Milestone 4 verified**. The
+[device test record](DEVICE-TEST-M4.md) preserves that confirmation alongside the
+detailed scenarios. Implementation, host/build verification, and on-device
+acceptance are complete for version `0.4.0`.
