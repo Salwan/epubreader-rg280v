@@ -8,6 +8,7 @@
 #include <vector>
 
 namespace epub {
+std::string bitmapText(const std::string& value, size_t cells = 4096);
 // App-owned RGB888 canvas. Device presentation performs SDL format conversion.
 class Canvas {
 public:

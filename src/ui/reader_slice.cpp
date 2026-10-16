@@ -18,11 +18,11 @@ void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
                 | (((p & 0xff) + 7 * (c & 0xff)) / 8));
         }
     };
-    auto line = [&](int y, const std::string& text) { canvas.text(10, y, text.substr(0, 50), palette.text); };
+    auto line = [&](int y, const std::string& text) { canvas.text(10, y, bitmapText(text, 50), palette.text); };
     if (controls.menuOpen() || page.pixels.empty()) {
         panel(8, 154);
-        line(18, "EPUB READER " EPUBREADER_VERSION " / MILESTONE 2");
-        line(44, page.title.empty() ? "EPUB RENDERING VERTICAL SLICE" : page.title);
+        line(18, "EPUB READER " EPUBREADER_VERSION " / MILESTONE 3");
+        line(44, page.title.empty() ? "OPENING BOOK" : page.title);
         line(64, page.author);
         line(86, page.path.substr(page.path.find_last_of('/') + 1));
         line(110, "PAGE " + std::to_string(page.page + 1) + " / " + std::to_string(page.pageCount) + " / " + palette.name);
@@ -30,7 +30,7 @@ void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
     }
     if (controls.menuOpen()) {
         panel(180, 210);
-        const std::array<std::string, 3> rows{{"REOPEN BOOK",
+        const std::array<std::string, 3> rows{{"BACK TO BOOK LIST",
             std::string("FONT SIZE: ") + (page.font > 0 ? "< " : "  ")
             + std::array<const char*, 3>{{"SMALL", "MEDIUM", "LARGE"}}[static_cast<size_t>(page.font)]
             + (page.font < 2 ? " >" : "  "), "EXIT APPLICATION"}};
@@ -48,8 +48,8 @@ void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
         line(368, "SELECT+START: SAVE AND EXIT");
     } else if (page.pixels.empty()) {
         panel(180, 154);
-        line(194, "X: OPEN MENU   A: RETRY LOAD");
-        line(222, "UP/DOWN: BUNDLED EPUB 2/3 SPECIMEN");
+        line(194, "X: OPEN MENU");
+        line(222, "MENU: BACK TO BOOK LIST / FONT / EXIT");
         line(250, "SELECT+START: SAVE AND EXIT");
     }
     if (busy || !status.empty()) {

@@ -1,4 +1,4 @@
-# Building the Milestone 2 reader
+# Building the Milestone 3 library reader
 
 ## Host prerequisites (Fedora 42, x86_64 Linux)
 
@@ -23,15 +23,15 @@ From the repository root:
 bash scripts/build-opk.sh
 ```
 
-The script verifies the SDK/font/CRengine/xxHash archive SHA256 values from
+The script verifies the SDK/font/CRengine/xxHash/JSON archive SHA256 values from
 `third_party/manifest.json`, verifies extracted reader sources against their
 archives, extracts and relocates the SDK under
 `third_party/sdk/gcw0-toolchain`, configures CMake for MIPS32r2/o32 hard float,
 builds, audits the ELF and full shared-library dependency closure, and packages:
 
 ```text
-dist/epubreader-m2-0.2.1.opk
-dist/epubreader-m2-0.2.1.opk.sha256
+dist/epubreader-m3-0.3.0.opk
+dist/epubreader-m3-0.3.0.opk.sha256
 ```
 
 The engine and hashing library are built statically. Rendering features are
@@ -57,12 +57,12 @@ Package timestamps and compile-time content do not depend on the wall clock.
 ```sh
 export OD_SDK="$PWD/third_party/sdk/gcw0-toolchain"
 export SOURCE_DATE_EPOCH=1663804800
-cmake -S . -B build/repro-m2 -G Ninja \
+cmake -S . -B build/repro-m3-final -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/rg280v.cmake \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build/repro-m2 --parallel 4
-python3 scripts/package.py --build build/repro-m2 --output dist/repro-m2.opk
-cmp dist/epubreader-m2-0.2.1.opk dist/repro-m2.opk
+cmake --build build/repro-m3-final --parallel 4
+python3 scripts/package.py --build build/repro-m3-final --output dist/repro-m3.opk
+cmp dist/epubreader-m3-0.3.0.opk dist/repro-m3.opk
 ```
 
 The pinned SDK and squashfs-tools version are part of reproducibility. ELF and
@@ -99,15 +99,39 @@ build/host/epubreader --assets "$PWD/assets" \
     --state-dir "$PWD/tmp/manual-reader-state" --book "/path/to/book.epub"
 ```
 
-Without `--book`, the reader uses `$HOME/books/milestone2.epub` if present and
-otherwise opens the bundled EPUB 2. Slice controls: left/right or Q/W turn pages;
-E/R changes theme; X opens the popup; highlight Font size with Up/Down and
-adjust it with Left/Right. B closes the popup, or saves/reopens when reading;
-Up/Down outside the popup opens the bundled EPUB 2/3 specimens; Escape+Enter
-saves/exits. Positions
-and font/theme preferences are under `$HOME/.epubreader/slice/` by default.
+Without `--book`, the app opens the Books List or restores the saved reader
+session. Defaults are `$HOME/books` and `$HOME/music`; **X → Books folder / Music
+folder** configures them. `--books-dir DIR` and `--music-dir DIR` also override
+and save these settings. All paths can contain spaces; quote shell arguments.
 
-CTest uses dummy SDL video/audio and isolated build-local state. The reader tests
+List controls: Up/Down selects (with repeat), Left/Right pages, brief A opens,
+E/R changes theme, and X opens settings/rescan/exit. Reader controls: Left/Right
+or Q/W turns pages; E/R changes theme; X opens the popup. The first row returns
+to the list. Highlight Font size with Up/Down and adjust with Left/Right; B/X
+closes the popup. Escape+Enter saves/exits everywhere. Folder selection uses
+arrows/A with Use this folder and parent rows; B cancels.
+
+Production state defaults to `$HOME/.epubreader/`: `config.json`, `session.json`,
+`books/*.json`, and rebuildable `cache/`. M2 `slice/state.ini` and
+`slice/books/*.position` are imported idempotently. With `--state-dir DIR`, only
+`DIR/slice/` is considered for migration. For an isolated list preview use:
+
+```sh
+build/host/epubreader --assets "$PWD/assets" \
+    --state-dir "$PWD/tmp/manual-library-state" --books-dir "$PWD/assets/books"
+```
+
+CTest has **seven checks**, using isolated build-local state and dummy SDL
+video/audio where needed. Production storage checks exercise migration, schemas,
+atomic replacement, failed saves/retry, and book-before-session ordering. Library
+checks cover discovery/signatures/cache, duplicates, deterministic 1,000-entry
+sorting/selection, rename/removal, and navigation boundaries. Application checks
+exercise the production controller with real child workers: list/reader resume,
+independent books, replaced/missing/renamed targets, one-page/sticky completion,
+folder settings, font controls, cancellation, and native scrollbar/text rendering.
+They emit eight native BMPs under `build/host/library-screenshots/`.
+
+The reader tests
 check EPUB 2/3 metadata and spine order, every numbered text token across page
 boundaries, relative PNG/JPEG rendering, font re-pagination without anchor drift,
 theme redraw without pagination changes, boundary clamping, serialized position
@@ -149,13 +173,21 @@ cross-build/ELF/package audits here and actual RG280V testing by the user.
 - `src/platform/`: SDL semantic mapping/timing, passive evdev observation (no
   grab), ALSA inventory/observation and one startup-restore path.
 - `src/audio/`: mpg123 worker, bounded PCM ring, precomputed chirp, SDL callback.
-- `src/storage/`: versioned diagnostic state and fsync/rename replacement.
+- `src/storage/`: versioned diagnostic state, production JSON config/session/book
+  records, slice migration, and a serialized atomic-write/retry queue.
+- `src/library/`: shared content fingerprints, batched nonrecursive discovery,
+  metadata cache reconciliation, ordering, progress, and selection/viewport model.
+- `src/app/controller.*`: screen/session transitions, job scheduling, generation
+  filtering, completion rules, debounce, and folder settings.
 - `src/reader/`: CRengine adapter, content/layout identity, 64 MiB document cache,
   three-page native-image cache, authoritative XPointer anchors, and worker IPC.
 
-The reader worker is an isolated child process, started before SDL/audio threads.
-CRengine has no reliable load/layout cancellation API; the main thread pumps a
-nonblocking socket and can terminate/reap the worker in a bounded interval.
+The reader worker is an isolated child process started through `posix_spawn` and
+an internal executable mode, so cancellation/replacement is safe after SDL and
+storage threads exist. CRengine has no reliable load/layout cancellation API;
+the main thread pumps a nonblocking socket and can terminate/reap the worker in
+a bounded interval. Metadata-only import initializes a minimal engine font
+manager but no document layout, face registration, or pagination cache.
 Progress messages keep loading visible, and all engine/font/cache access stays
 in the child. Cache prefetch happens after publishing the requested page. Font
 changes retain the original text anchor until a deliberate page turn, preventing
@@ -168,7 +200,7 @@ platform diagnostic from a current target build, use
 `python3 scripts/package.py --diagnostic`. The accepted historical M1 artifacts
 and test records retain their original versions.
 
-See [DEVICE-TEST-M2-0.2.1.md](DEVICE-TEST-M2-0.2.1.md) for reader installation and controls,
-and [VERIFICATION-M2.md](VERIFICATION-M2.md) for the verified artifact/checks.
+See [DEVICE-TEST-M3.md](DEVICE-TEST-M3.md) for installation, migration, and controls,
+and [VERIFICATION-M3.md](VERIFICATION-M3.md) for the verified artifact/checks.
 [DEVICE-TEST.md](DEVICE-TEST.md) records the passed original on-device platform
 acceptance; [DEVICE-TEST-0.1.1.md](DEVICE-TEST-0.1.1.md) covers its visual follow-up.

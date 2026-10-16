@@ -27,6 +27,15 @@
       "license": "GPL-2.0 (selected)",
       "options": "Headless static library; FreeType, PNG, standard RGB JPEG, zlib, built-in English line breaking; dynamic foreground-color hook; all other optional features disabled"
     },
+    "json": {
+      "revision": "v3.12.0",
+      "url": "https://codeload.github.com/nlohmann/json/tar.gz/refs/tags/v3.12.0",
+      "archive": "json-3.12.0.tar.gz",
+      "sha256": "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187",
+      "prefix": "json-3.12.0",
+      "license": "MIT",
+      "options": "Header-only JSON, C++17; production settings, bookmarks, sessions and metadata cache"
+    },
     "xxhash": {
       "revision": "v0.8.3",
       "url": "https://codeload.github.com/Cyan4973/xxHash/tar.gz/refs/tags/v0.8.3",

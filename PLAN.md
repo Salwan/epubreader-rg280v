@@ -375,6 +375,13 @@ annotated acceptance remains in `docs/DEVICE-TEST-M2.md`; focused follow-up is
 
 ### Milestone 3 — Library and persistence
 
+**Implementation status:** implemented as `0.3.0`; host/build verification is
+complete and RG280V / Adam v2.1 acceptance is pending. The production library,
+JSON storage and slice migration, session resume, completion rules, metadata
+indexing, folder settings, and bitmap list are included. See
+[`docs/VERIFICATION-M3.md`](docs/VERIFICATION-M3.md) and the supplied
+[`docs/DEVICE-TEST-M3.md`](docs/DEVICE-TEST-M3.md) checklist.
+
 **Detailed implementation plan:** [Milestone 3 plan](docs/PLAN-M3.md), covering
 production storage and slice migration, asynchronous metadata indexing, library
 identity/selection, startup sessions, the usable books-list slice, and verification.

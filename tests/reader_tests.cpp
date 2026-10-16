@@ -36,7 +36,7 @@ void checkMenuControls() {
     check(action(A::Y).effect == E::None, "Font hotkey still active outside popup");
     check(action(A::Right).effect == E::Turn, "Normal page-turn mapping");
     action(A::X);
-    check(controls.menuOpen() && controls.selected() == M::Reopen, "Popup default selection");
+    check(controls.menuOpen() && controls.selected() == M::Back, "Popup default selection");
     check(action(A::Right).effect == E::None && action(A::R1).effect == E::None, "Popup leaked page turns");
     action(A::Down);
     check(controls.selected() == M::FontSize, "Font row selection");
@@ -52,8 +52,8 @@ void checkMenuControls() {
     action(A::B, 1, true);
     check(!controls.menuOpen(), "B did not close popup during reader work");
     action(A::X);
-    check(controls.selected() == M::Reopen, "Popup selection was not reset on reopen");
-    check(action(A::AShort).effect == E::Reopen && !controls.menuOpen(), "Reopen menu action");
+    check(controls.selected() == M::Back, "Popup selection was not reset on reopen");
+    check(action(A::AShort, 1, true).effect == E::Back && !controls.menuOpen(), "Back to library unavailable while busy");
     // Closing an overlay must not turn a held menu direction into a specimen
     // shortcut; an A press spanning the transition must also be consumed.
     epub::Input input;
@@ -69,12 +69,20 @@ void checkMenuControls() {
 }
 int main(int argc, char** argv) {
     try {
-        check(argc == 4, "Expected assets, fixtures, isolated state directory");
+        check(argc == 5, "Expected assets, fixtures, isolated state directory, worker executable");
         checkMenuControls();
         const std::string assets = argv[1], fixtures = argv[2], state = argv[3];
         std::filesystem::remove_all(state);
         epub::ensureDirectory(state);
-        epub::ReaderWorker worker(assets, state);
+        epub::ReaderWorker worker(assets, state, argv[4]);
+        auto metadata = request(worker, {epub::ReaderCommand::Inspect, 0, 1, 0, assets + "/books/prose-epub3.epub"});
+        check(metadata.error.empty() && metadata.entries.size() == 1 && metadata.entries[0].error.empty(), "Metadata-only EPUB inspection: " + metadata.error + (metadata.entries.empty() ? " (no entry)" : metadata.entries[0].error));
+        check(metadata.entries[0].title == "EPUB 3 Prose Specimen" && metadata.entries[0].author == "RG280V Reader Project", "Metadata-only properties");
+        check(metadata.pixels.empty() && metadata.pageCount == 0 && !std::filesystem::exists(state + "/cache/documents"), "Metadata inspection initialized pagination");
+        const auto generation = worker.generation(); worker.restart();
+        check(worker.generation() > generation, "Worker generation did not advance");
+        auto malformedMetadata = request(worker, {epub::ReaderCommand::Inspect, 0, 1, 0, fixtures + "/no-spine.epub"});
+        check(malformedMetadata.error.empty() && malformedMetadata.entries[0].error.empty(), "Metadata-only invalid spine distinction");
         std::string restartAnchor;
         int restartPage = 0;
         for (const std::string version : {"2", "3"}) {
@@ -167,10 +175,12 @@ int main(int argc, char** argv) {
         worker.poll();
         const auto start = std::chrono::steady_clock::now();
         worker.stop();
-        check(std::chrono::steady_clock::now() - start < std::chrono::milliseconds(500), "Reader cancellation not bounded");
+        const auto cancelTime = std::chrono::steady_clock::now() - start;
+        check(cancelTime < std::chrono::milliseconds(500), "Reader cancellation not bounded");
+        std::cout << "CANCEL terminate/reap ms=" << std::chrono::duration_cast<std::chrono::milliseconds>(cancelTime).count() << '\n';
         check(!worker.submit({}), "Stopped worker accepted job");
         {
-            epub::ReaderWorker restarted(assets, state);
+            epub::ReaderWorker restarted(assets, state, argv[4]);
             const auto result = good(restarted, {epub::ReaderCommand::Open, 0, 1, 0, assets + "/books/prose-epub3.epub"});
             check(result.anchor == restartAnchor && result.page == restartPage, "Fresh worker/process did not restore serialized location");
         }
@@ -178,7 +188,7 @@ int main(int argc, char** argv) {
             if (entry.path().extension() == ".cr3") std::ofstream(entry.path(), std::ios::trunc) << "interrupted cache";
         }
         {
-            epub::ReaderWorker recovered(assets, state);
+            epub::ReaderWorker recovered(assets, state, argv[4]);
             const auto result = good(recovered, {epub::ReaderCommand::Open, 0, 1, 0, assets + "/books/prose-epub3.epub"});
             check(result.anchor == restartAnchor && !result.documentCacheHit, "Damaged cache did not rebuild at saved text location");
         }

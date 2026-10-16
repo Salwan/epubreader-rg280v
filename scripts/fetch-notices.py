@@ -62,6 +62,7 @@ def main():
         ("CRengine-image-scaling.txt", "crengine", "crengine/qimagescale/QIMAGETRANSFORM_LICENSE.txt"),
         ("CRengine-Qt-notice.txt", "crengine", "crengine/qimagescale/qimagescale.cpp"),
         ("xxHash-LICENSE.txt", "xxhash", "LICENSE"),
+        ("json-LICENSE.txt", "json", "LICENSE.MIT"),
     ):
         spec = manifest["sources"][source]
         archive = ROOT / "third_party/downloads" / spec["archive"]

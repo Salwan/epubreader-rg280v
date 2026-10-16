@@ -2,6 +2,8 @@
 #include "storage/position.hpp"
 #include "storage/state.hpp"
 #include "ui/canvas.hpp"
+#include "library/identity.hpp"
+#include "storage/store.hpp"
 #include <epubfmt.h>
 #include <hyphman.h>
 #include <lvdocview.h>
@@ -31,20 +33,6 @@ std::string hex(XXH128_hash_t hash) {
     return out.str();
 }
 std::string hashText(const std::string& text) { return hex(XXH3_128bits(text.data(), text.size())); }
-std::string hashFile(const std::string& path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) throw std::runtime_error("Cannot open EPUB/resource: " + path);
-    std::unique_ptr<XXH3_state_t, decltype(&XXH3_freeState)> state(XXH3_createState(), XXH3_freeState);
-    if (!state) throw std::bad_alloc();
-    XXH3_128bits_reset(state.get());
-    std::array<char, 65536> buffer{};
-    while (in) {
-        in.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-        XXH3_128bits_update(state.get(), buffer.data(), static_cast<size_t>(in.gcount()));
-    }
-    if (!in.eof()) throw std::runtime_error("Read failed: " + path);
-    return hex(XXH3_128bits_digest(state.get()));
-}
 struct Callbacks : LVDocViewCallback {
     ReaderEngine::Progress progress;
     void update(const char* stage, int percent) { if (progress) progress(stage, percent); }
@@ -67,7 +55,7 @@ struct ReaderEngine::Impl {
         stylesheet = readText(assets + "/styles/reader.css");
         resourceKey = std::string(EPUBREADER_ENGINE_REVISION) + ":layout-v1:dynamic-color-v1:portable-jpeg-v1:640x478:dpi192:margin16,12,16,12:line115:DejaVuSerif:builtin-break:embeddedstyles1:embeddedfonts0:" + hashText(stylesheet);
         for (const char* face : {"DejaVuSerif.ttf", "DejaVuSerif-Bold.ttf", "DejaVuSerif-Italic.ttf", "DejaVuSerif-BoldItalic.ttf"})
-            resourceKey += ':' + hashFile(assets + "/fonts/" + face);
+            resourceKey += ':' + contentIdentity(assets + "/fonts/" + face);
         ensureDirectory(stateDirectory + "/cache/documents");
         CRLog::setLogLevel(CRLog::LL_WARN);
         if (!InitFontManager(lString8((assets + "/fonts/").c_str()))) throw std::runtime_error("CRengine font initialization failed");
@@ -111,7 +99,8 @@ struct ReaderEngine::Impl {
         view.reset(); pages.clear(); anchor.clear(); identity.clear();
         warning = ldomDocCache::enabled() ? "" : "Document cache unavailable";
         path = r.path; font = std::clamp(r.font, 0, 2); theme = std::clamp(r.theme, 0, 5);
-        identity = hashFile(path);
+        const auto signature = fileSignature(path);
+        identity = contentIdentity(path);
         auto stream = LVOpenFileStream(unicode(path).c_str(), LVOM_READ);
         if (stream.isNull() || !DetectEpubFormat(stream)) throw std::runtime_error("Not a readable, unprotected EPUB: " + path);
         view = std::make_unique<LVDocView>(32, true);
@@ -148,8 +137,13 @@ struct ReaderEngine::Impl {
         documentCacheHit = view->getDocument()->isRendered();
         view->checkRender();
         if (view->getPageCount() < 1) throw std::runtime_error("EPUB contains no readable pages");
+        if (fileSignature(path) != signature) throw std::runtime_error("Book changed while opening; retry from library");
         std::string saved = r.anchor;
-        if (saved.empty()) saved = loadPosition(stateDirectory, identity).anchor;
+        if (saved.empty()) {
+            try { saved = readBook(stateDirectory, identity).anchor; }
+            catch (const std::exception&) { warning = "Book state unreadable; opened at beginning"; }
+            if (saved.empty()) saved = loadPosition(stateDirectory, identity).anchor;
+        }
         if (!saved.empty() && !restore(saved)) warning = "Saved anchor invalid; opened at beginning";
         if (anchor.empty()) anchor = utf8(view->getBookmark().toString());
         cacheDocument();
@@ -175,6 +169,7 @@ struct ReaderEngine::Impl {
         return {std::move(native.pixels), utf8(range.getRangeText()), utf8(start.toString()), view->getCurrentPageImageCount()};
     }
     ReaderResult snapshot() {
+        if (anchor.size() > 16384) throw std::runtime_error("EPUB text anchor exceeds supported bound");
         const int page = view->getCurPage();
         const bool hit = pages.count(page) != 0;
         if (!hit) pages.emplace(page, render(page));
@@ -185,10 +180,13 @@ struct ReaderEngine::Impl {
         const auto& image = pages.at(page);
         ReaderResult result;
         result.page = page; result.pageCount = view->getPageCount();
-        result.progress = view->getPosEndPagePercent(); result.font = font; result.theme = theme;
+        // Upstream reports the last page's start (and can be negative for a
+        // one-page document). Our progress represents the displayed page end.
+        result.progress = page == result.pageCount - 1 ? 10000 : std::clamp(view->getPosEndPagePercent(), 0, 10000);
+        result.font = font; result.theme = theme;
         result.pageCacheHit = hit; result.documentCacheHit = documentCacheHit;
         result.identity = identity; result.path = path; result.anchor = anchor; result.pageAnchor = image.pageAnchor;
-        result.title = utf8(view->getTitle()); result.author = utf8(view->getAuthors());
+        result.title = clipUtf8(utf8(view->getTitle()), 4096); result.author = clipUtf8(utf8(view->getAuthors()), 4096);
         result.text = image.text; result.images = image.images; result.pixels = image.pixels;
         result.layoutKey = layoutKey(); result.message = warning;
         const auto pointer = view->getDocument()->createXPointer(unicode(anchor));

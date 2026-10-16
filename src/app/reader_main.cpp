@@ -1,9 +1,6 @@
-#include "platform/input.hpp"
-#include "reader/worker.hpp"
-#include "storage/position.hpp"
-#include "storage/state.hpp"
-#include "ui/reader_slice.hpp"
-#include <algorithm>
+#include "app/controller.hpp"
+#include "library/identity.hpp"
+#include "ui/books_list.hpp"
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -22,21 +19,16 @@ uint64_t suspendClock() {
     return static_cast<uint64_t>(time.tv_sec) * 1000 + static_cast<uint64_t>(time.tv_nsec) / 1000000;
 }
 std::string executableDirectory() {
-    char path[4096];
-    const ssize_t n = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    char path[4096]; const ssize_t n = readlink("/proc/self/exe", path, sizeof(path) - 1);
     if (n <= 0) return ".";
-    path[n] = 0; std::string s(path); return s.substr(0, s.find_last_of('/'));
+    return epub::parentPath(std::string(path, static_cast<size_t>(n)));
 }
 struct SDLGuard { ~SDLGuard() { SDL_Quit(); } };
 void present(epub::Canvas& canvas, SDL_Surface* display, bool native) {
-    SDL_Surface* surface;
     epub::Canvas preview(640, 480);
-    if (native) surface = canvas.surface();
-    else {
-        for (int y = 0; y < 480; ++y) for (int x = 0; x < 640; ++x)
-            preview.pixel(x, y, canvas.pixels[static_cast<size_t>(y * 320 + x / 2)]);
-        surface = preview.surface();
-    }
+    if (!native) for (int y = 0; y < 480; ++y) for (int x = 0; x < 640; ++x)
+        preview.pixel(x, y, canvas.pixels[static_cast<size_t>(y * 320 + x / 2)]);
+    SDL_Surface* surface = native ? canvas.surface() : preview.surface();
     if (!surface) throw std::runtime_error(SDL_GetError());
     SDL_BlitSurface(surface, nullptr, display, nullptr); SDL_FreeSurface(surface);
     if (SDL_Flip(display) < 0) throw std::runtime_error(SDL_GetError());
@@ -44,6 +36,8 @@ void present(epub::Canvas& canvas, SDL_Surface* display, bool native) {
 }
 int main(int argc, char** argv) {
     try {
+        if (argc == 6 && std::string(argv[1]) == "--worker")
+            return epub::readerWorkerMain(std::stoi(argv[2]), argv[3], argv[4], std::stoi(argv[5]));
 #ifdef EPUBREADER_DEVICE
         bool native = true;
         setenv("SDL_VIDEO_KMSDRM_SCALING_MODE", "0", 1);
@@ -51,164 +45,100 @@ int main(int argc, char** argv) {
         bool native = false;
 #endif
         const char* home = std::getenv("HOME");
-        const std::string homePath = home ? home : ".";
-        std::string assets = executableDirectory() + "/assets", stateDirectory = homePath + "/.epubreader/slice", book, smoke;
+        const std::string homePath = epub::absolutePath(home ? home : ".");
+        std::string assets = executableDirectory() + "/assets", stateDirectory = homePath + "/.epubreader";
+        std::string book, smoke, booksFolder, musicFolder;
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             auto value = [&]() -> std::string { if (++i >= argc) throw std::runtime_error("Missing value for " + arg); return argv[i]; };
-            if (arg == "--assets") assets = value();
-            else if (arg == "--state-dir") stateDirectory = value();
-            else if (arg == "--book") book = value();
-            else if (arg == "--smoke-test") smoke = value();
+            if (arg == "--assets") assets = epub::absolutePath(value());
+            else if (arg == "--state-dir") stateDirectory = epub::absolutePath(value());
+            else if (arg == "--book") book = epub::absolutePath(value());
+            else if (arg == "--books-dir") booksFolder = epub::absolutePath(value());
+            else if (arg == "--music-dir") musicFolder = epub::absolutePath(value());
+            else if (arg == "--smoke-test") smoke = epub::absolutePath(value());
             else if (arg == "--native-window") native = true;
             else if (arg == "--help") {
-                std::cout << "EPUB Reader " EPUBREADER_VERSION " / Milestone 2\n"
-                    << "--assets DIR --state-dir DIR --book FILE --native-window --smoke-test DIR\n"
-                    << "Default: $HOME/books/milestone2.epub if present, otherwise bundled EPUB 2.\n"
-                    << "Left/right or q/w: pages; e/r: theme; x: menu; b: reopen; up/down: sample; Esc+Enter: exit.\n"
-                    << "Menu: up/down selects; left/right adjusts Font size; a activates; b/x closes.\n";
+                std::cout << "EPUB Reader " EPUBREADER_VERSION " / Milestone 3\n"
+                    << "--assets DIR --state-dir DIR --book FILE --books-dir DIR --music-dir DIR --native-window --smoke-test DIR\n"
+                    << "Default: books list, or the last successfully opened reader session.\n"
+                    << "List: arrows select/page; A opens; X settings/folders; E/R themes.\n"
+                    << "Reader: left/right or Q/W pages; X menu; E/R themes.\n"
+                    << "Menu: up/down selects; left/right adjusts Font size; A activates; B/X closes.\n"
+                    << "Escape+Enter: save and exit everywhere. Folder overrides are saved.\n";
                 return 0;
-            } else if (!arg.empty() && arg[0] != '-' && book.empty()) book = arg;
+            } else if (!arg.empty() && arg[0] != '-' && book.empty()) book = epub::absolutePath(arg);
             else throw std::runtime_error("Unknown argument: " + arg);
-        }
-        if (book.empty()) {
-            book = homePath + "/books/milestone2.epub";
-            if (::access(book.c_str(), F_OK) != 0) book = assets + "/books/prose-epub2.epub";
         }
         epub::ensureDirectory(stateDirectory);
         std::cout.setf(std::ios::unitbuf);
         if (!std::freopen((stateDirectory + "/reader.log").c_str(), "w", stdout) ||
             !std::freopen((stateDirectory + "/stderr.log").c_str(), "w", stderr)) throw std::runtime_error("Cannot open reader logs");
-        std::cout << "EPUBREADER " EPUBREADER_VERSION " Milestone 2\nassets=" << assets << "\nbook=" << book << '\n';
-        // Fork before SDL starts any internal threads. No engine APIs run in UI.
+        std::cout << "EPUBREADER " EPUBREADER_VERSION " Milestone 3\nassets=" << assets << "\nstate=" << stateDirectory << '\n';
+        epub::Store store(stateDirectory, smoke.empty() ? homePath : stateDirectory + "/home");
+        if (!booksFolder.empty()) store.config.books = booksFolder;
+        if (!musicFolder.empty()) store.config.music = musicFolder;
+        if (!smoke.empty()) store.config.preferences = {};
         epub::ReaderWorker worker(assets, stateDirectory);
         std::signal(SIGINT, signalHandler); std::signal(SIGTERM, signalHandler);
         SDLGuard guard;
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) throw std::runtime_error(SDL_GetError());
-        SDL_WM_SetCaption("EPUB Reader - RG280V Milestone 2", nullptr);
+        SDL_WM_SetCaption("EPUB Reader - RG280V Milestone 3", nullptr);
         SDL_ShowCursor(SDL_DISABLE); SDL_EnableKeyRepeat(0, 0);
         SDL_Surface* display = SDL_SetVideoMode(native ? 320 : 640, 480, 16,
             native && smoke.empty() ? SDL_HWSURFACE | SDL_DOUBLEBUF : SDL_SWSURFACE);
         if (!display || display->w != (native ? 320 : 640) || display->h != 480) throw std::runtime_error("SDL display initialization failed");
-        auto settings = epub::loadState(stateDirectory);
-        if (!smoke.empty()) settings = epub::State{};
-        epub::ReaderResult page;
-        page.font = settings.font; page.theme = settings.theme;
+        epub::Controller app(store, worker, book);
         epub::Canvas canvas;
-        epub::ReaderControls controls;
         epub::Input input;
-        std::string status = "Loading EPUB";
-        bool running = true, dirty = true, positionDirty = false;
-        uint32_t saveSince = 0;
-        auto save = [&] {
-            try {
-                epub::saveState(stateDirectory, settings);
-                if (!page.anchor.empty()) epub::savePosition(stateDirectory, {page.identity, page.path, page.anchor});
-                positionDirty = false;
-            } catch (const std::exception& error) {
-                status = "SAVE ERROR: " + std::string(error.what());
-                std::cerr << status << '\n'; dirty = true;
-            }
-        };
-        auto submit = [&](epub::ReaderRequest request) {
-            if (worker.submit(request)) { status = "Loading / rendering"; dirty = true; return true; }
-            return false;
-        };
-        auto open = [&](const std::string& path) {
-            save();
-            submit({epub::ReaderCommand::Open, 0, settings.font, settings.theme, path});
-        };
-        auto receive = [&] {
-            for (int count = 0; count < 16; ++count) {
-                auto result = worker.poll();
-                if (!result) break;
-                dirty = true;
-                if (!result->complete) status = result->message + " " + std::to_string(result->progress) + "%";
-                else if (!result->error.empty()) {
-                    status = result->error; controls.showMenu(); input.consumeA(); input.consumeRepeat();
-                    std::cerr << "READER ERROR: " << status << '\n';
-                    // Keep the last successfully displayed/savable page on error.
-                } else {
-                    page = std::move(*result); status = page.message;
-                    settings.font = page.font; settings.theme = page.theme;
-                    positionDirty = true; saveSince = SDL_GetTicks();
-                    std::cout << "PAGE " << page.page + 1 << '/' << page.pageCount << " font=" << page.font << " theme=" << page.theme
-                              << " ms=" << page.elapsedMs << " page-cache=" << page.pageCacheHit << " document-cache=" << page.documentCacheHit
-                              << " anchor=" << page.anchor << '\n';
-                }
-            }
-        };
-        auto dispatch = [&](epub::Action action) {
-            const bool wasOpen = controls.menuOpen();
-            const auto control = controls.handle(action, settings.font, settings.theme, worker.busy());
-            if (controls.menuOpen() != wasOpen) { input.consumeA(); input.consumeRepeat(); }
-            using E = epub::ReaderEffect; using C = epub::ReaderCommand;
-            switch (control.effect) {
-            case E::Quit: running = false; break;
-            case E::Refresh: dirty = true; break;
-            case E::Turn: submit({C::Turn, control.value}); break;
-            case E::Font: submit({C::Font, control.value}); break;
-            case E::Theme: submit({C::Theme, control.value}); break;
-            case E::Reopen: open(book); break;
-            case E::Specimen:
-                book = assets + "/books/prose-epub" + std::to_string(control.value) + ".epub";
-                open(book); input.consumeA(); break;
-            case E::None: break;
-            }
-        };
-        open(book);
+        auto consumeTransition = [&] { if (app.transition()) { input.consumeA(); input.consumeRepeat(); } };
+        auto dispatch = [&](epub::Action a) { app.action(a); consumeTransition(); };
         if (!smoke.empty()) {
+            if (book.empty()) throw std::runtime_error("Reader smoke requires --book FILE");
             epub::ensureDirectory(smoke);
             auto wait = [&] {
                 const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
-                while (worker.busy() && std::chrono::steady_clock::now() < deadline) { receive(); SDL_Delay(1); }
-                if (worker.busy() || page.pixels.empty() || !status.empty()) throw std::runtime_error("Reader smoke failed: " + status);
+                do { app.tick(SDL_GetTicks()); consumeTransition(); SDL_Delay(1); }
+                while (app.busy() && std::chrono::steady_clock::now() < deadline);
+                if (app.busy() || app.screen() != epub::Screen::Reader || app.page.pixels.empty() || !app.notice.empty())
+                    throw std::runtime_error("Reader smoke failed: " + app.notice + ' ' + app.status);
             };
-            wait();
-            dispatch(epub::Action::X); dispatch(epub::Action::Down);
-            const epub::ReaderControls hidden;
+            auto shot = [&](const std::string& name) { epub::renderApplication(canvas, app); canvas.saveBmp(smoke + '/' + name + ".bmp"); };
+            wait(); dispatch(epub::Action::X); dispatch(epub::Action::Down);
             for (int size = 0; size < 3; ++size) {
-                while (settings.font != size) { dispatch(settings.font < size ? epub::Action::Right : epub::Action::Left); wait(); }
-                if (!controls.menuOpen() || controls.selected() != epub::ReaderMenuItem::FontSize)
-                    throw std::runtime_error("Font adjustment dismissed or moved the menu");
-                epub::renderReaderSlice(canvas, page, settings.theme, hidden, false, "");
-                canvas.saveBmp(smoke + "/font-" + std::to_string(size) + ".bmp");
-                epub::renderReaderSlice(canvas, page, settings.theme, controls, false, "");
-                canvas.saveBmp(smoke + "/font-menu-" + std::to_string(size) + ".bmp");
+                while (store.config.preferences.font != size) { dispatch(store.config.preferences.font < size ? epub::Action::Right : epub::Action::Left); wait(); }
+                if (app.readerControls.selected() != epub::ReaderMenuItem::FontSize) throw std::runtime_error("Font menu selection drifted");
+                shot("font-menu-" + std::to_string(size));
+                dispatch(epub::Action::B); shot("font-" + std::to_string(size));
+                dispatch(epub::Action::X); dispatch(epub::Action::Down);
             }
             dispatch(epub::Action::B);
-            for (int theme = 0; theme < static_cast<int>(epub::palettes.size()); ++theme) {
-                submit({epub::ReaderCommand::Theme, theme}); wait();
-                epub::renderReaderSlice(canvas, page, settings.theme, hidden, false, "");
-                canvas.saveBmp(smoke + '/' + epub::palettes[static_cast<size_t>(theme)].name + ".bmp");
+            for (size_t theme = 0; theme < epub::palettes.size(); ++theme) {
+                while (store.config.preferences.theme != static_cast<int>(theme)) { dispatch(epub::Action::R2); wait(); }
+                shot(epub::palettes[theme].name);
             }
-            dispatch(epub::Action::X); dispatch(epub::Action::Down);
-            epub::renderReaderSlice(canvas, page, settings.theme, controls, false, "");
-            canvas.saveBmp(smoke + "/info.bmp"); present(canvas, display, native);
-            save(); worker.stop(); std::cout << "SMOKE PASS: EPUB, popup font controls, themes, native composition, state\n"; return 0;
+            dispatch(epub::Action::X); dispatch(epub::Action::Down); shot("info");
+            present(canvas, display, native); app.shutdown();
+            std::cout << "SMOKE PASS: production controller, popup font controls, themes, native composition, JSON state\n"; return 0;
         }
         uint64_t lastLoop = suspendClock();
-        while (running && !interrupted) {
-            const uint32_t now = SDL_GetTicks();
-            const uint64_t clock = suspendClock();
+        bool running = true;
+        while (running && !app.quit() && !interrupted) {
+            const uint32_t now = SDL_GetTicks(); const uint64_t clock = suspendClock();
             if (clock - lastLoop > 1500) input.reset();
             lastLoop = clock;
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
                 if (event.type == SDL_QUIT) running = false;
                 else if (event.type == SDL_ACTIVEEVENT && !event.active.gain) input.reset();
-                else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP)
-                    dispatch(input.key(event.key.keysym.sym, event.type == SDL_KEYDOWN, now));
+                else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) dispatch(input.key(event.key.keysym.sym, event.type == SDL_KEYDOWN, now));
+                if (app.quit()) break;
             }
-            if (!running) break;
-            dispatch(input.tick(now)); receive();
-            if (positionDirty && SDL_GetTicks() - saveSince >= 250) save();
-            if (dirty) {
-                epub::renderReaderSlice(canvas, page, settings.theme, controls, worker.busy(), status);
-                present(canvas, display, native); dirty = false;
-            }
+            if (!running || app.quit()) break;
+            dispatch(input.tick(now)); app.tick(now); consumeTransition();
+            if (app.changed()) { epub::renderApplication(canvas, app); present(canvas, display, native); }
             SDL_Delay(8);
         }
-        save(); worker.stop(); std::cout << "Clean exit: last completed text anchor saved\n"; return 0;
+        app.shutdown(); std::cout << "Clean exit: production session and last completed text anchor saved\n"; return 0;
     } catch (const std::exception& error) { std::cerr << "FATAL: " << error.what() << '\n'; return 1; }
 }

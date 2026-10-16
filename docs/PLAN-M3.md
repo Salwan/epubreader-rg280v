@@ -1,6 +1,10 @@
 # Milestone 3 — Library and persistence implementation plan
 
-**Status:** planned; implementation has not started.
+**Status:** implemented in `0.3.0`; host/build verification is complete and device
+acceptance is pending. See [verification](VERIFICATION-M3.md) and the
+[device checklist](DEVICE-TEST-M3.md). The design and ordered work below record
+the implementation baseline; folder controls/rendering are integrated into the
+controller and books-list modules rather than separate chooser/control files.
 
 **Target deliverable:** `dist/epubreader-m3-0.3.0.opk`, with host verification and
 an RG280V / Adam v2.1 acceptance checklist.

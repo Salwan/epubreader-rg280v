@@ -5,6 +5,29 @@ Would be awesome if I can read epub books on my RG280V.
 
 ## Implementation status
 
+**Milestone 3: implemented as version `0.3.0`; device acceptance pending.**
+
+The app now opens a Books List, indexes EPUB metadata without pagination, tracks
+per-book progress/completion, and resumes the last reader/list session. Content
+fingerprints preserve bookmarks across renames; changed/missing books recover to
+the list. Versioned JSON state is written atomically, with automatic M2 migration.
+
+- Build: `bash scripts/build-opk.sh`
+- Artifact: `dist/epubreader-m3-0.3.0.opk`
+- [Installation, controls, migration, and device checklist](docs/DEVICE-TEST-M3.md)
+- [Milestone 3 verification and artifact checksum](docs/VERIFICATION-M3.md)
+- [Build and host preview instructions](docs/BUILD.md)
+- [Implementation plan and design decisions](docs/PLAN-M3.md)
+
+Put EPUBs directly in `$HOME/books`, or use **X → Books folder** from the list.
+Up/Down selects, Left/Right pages through the list, and brief A opens a book.
+X in the reader opens Back to book list / Font size / Exit. Highlight Font size
+and use Left/Right to adjust it while preserving the text anchor. L2/R2 changes
+theme; Select+Start saves/exits everywhere. On first upgrade, M2 preferences and
+bookmarks are imported; subsequent launches restore the production session.
+
+### Previous rendering milestone
+
 **Milestone 2: accepted on RG280V / Adam v2.1 with version 0.2.0.**
 
 Version `0.2.1` incorporates the device feedback: redder amber foregrounds,
@@ -23,7 +46,7 @@ keeps the interface responsive; document and neighboring-page caches are bounded
 - [Milestone 2 host verification and artifact checksum](docs/VERIFICATION-M2.md)
 - [Build and host preview instructions](docs/BUILD.md)
 
-At launch, `$HOME/books/milestone2.epub` is opened if present; otherwise a bundled
+The historical M2 slice opens `$HOME/books/milestone2.epub` if present; otherwise a bundled
 prose specimen is used. Up/Down switches between the EPUB 2/3 specimens outside
 the menu. X opens the popup; Down highlights **Font size**, and Left/Right adjusts
 small/medium/large while preserving the text anchor. B closes the menu, or

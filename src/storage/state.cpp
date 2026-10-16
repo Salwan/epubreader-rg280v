@@ -20,7 +20,8 @@ void ensureDirectory(const std::string& path) {
             throw std::runtime_error("mkdir " + part + ": " + std::strerror(errno));
     }
 }
-State loadState(const std::string& directory) {
+State loadState(const std::string& directory, bool* valid) {
+    if (valid) *valid = false;
     State defaults, s;
     std::ifstream f(directory + "/state.ini");
     std::string key;
@@ -40,6 +41,7 @@ State loadState(const std::string& directory) {
     if (version != 1) return defaults;
     s.theme = std::clamp(s.theme, 0, static_cast<int>(palettes.size()) - 1); s.font = std::clamp(s.font, 0, 2);
     s.volume = std::clamp(s.volume, 0, 100);
+    if (valid) *valid = true;
     return s;
 }
 void saveState(const std::string& directory, const State& s) {
@@ -53,7 +55,7 @@ void saveState(const std::string& directory, const State& s) {
 void atomicWrite(const std::string& directory, const std::string& filename, const std::string& data) {
     ensureDirectory(directory);
     const std::string path = directory + '/' + filename, temp = path + ".tmp";
-    int fd = ::open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    int fd = ::open(temp.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
     if (fd < 0) throw std::runtime_error("Cannot open state temporary file: " + std::string(std::strerror(errno)));
     size_t offset = 0;
     while (offset < data.size()) {
@@ -64,7 +66,9 @@ void atomicWrite(const std::string& directory, const std::string& filename, cons
     }
     const int syncResult = ::fsync(fd), closeResult = ::close(fd);
     if (syncResult || closeResult || ::rename(temp.c_str(), path.c_str())) throw std::runtime_error("State atomic replacement failed");
-    fd = ::open(directory.c_str(), O_RDONLY | O_DIRECTORY);
-    if (fd >= 0) { ::fsync(fd); ::close(fd); }
+    fd = ::open(directory.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0) throw std::runtime_error("Cannot open state directory for sync");
+    const int directorySync = ::fsync(fd), directoryClose = ::close(fd);
+    if (directorySync || directoryClose) throw std::runtime_error("State directory sync failed");
 }
 }

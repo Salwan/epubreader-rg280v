@@ -1,4 +1,4 @@
-# Dependencies through Milestone 2
+# Dependencies through Milestone 3
 
 `manifest.json` pins the entire target SDK archive, so its headers and binary
 libraries cannot vary independently. The cross-build uses only this sysroot;
@@ -49,6 +49,7 @@ The original bitmap glyphs, icon, and tone are covered by the application licens
 | KOReader CRengine | `ab1981c22e4e67cf9d98be3c301736941d2d271c`, https://github.com/koreader/crengine | GPL-2.0 (selected) |
 | CRengine Qt image scaler | Included in the pinned engine archive | GPL-2.0 (selected), BSD/Imlib2 notices |
 | xxHash library | 0.8.3, https://github.com/Cyan4973/xxHash/tree/v0.8.3 | BSD-2-Clause |
+| nlohmann/json | 3.12.0, https://github.com/nlohmann/json/tree/v3.12.0 | MIT |
 | IJG libjpeg | 9d, https://www.ijg.org/files/jpegsrc.v9d.tar.gz | IJG |
 
 FreeType notice: portions of this software are copyright © 2020 The FreeType
@@ -86,3 +87,12 @@ adapter. CRengine, scaler, xxHash, and JPEG notices are checked in and packaged.
 Shared libraries remain replaceable in an extracted/repacked OPK. Retain the
 repository/source revisions and notices when distributing derived packages.
 `scripts/fetch-notices.py` is a maintainer tool, not a build-time network dependency.
+
+## Production persistence
+
+M3 uses the checksum-pinned nlohmann/json 3.12.0 header-only library from
+`third_party/src/json/single_include`. Bootstrap verifies the source archive and
+extracted contents like the renderer dependencies. It is compiled into the
+application and adds no runtime shared-library dependency. Its MIT notice is
+checked in and packaged. The storage/session revision counter uses native-width
+32-bit atomics on MIPS32, avoiding an additional libatomic runtime dependency.

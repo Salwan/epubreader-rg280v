@@ -9,7 +9,7 @@ struct State {
     long minimum = 0, maximum = 0, rawLeft = -1, rawRight = -1;
     int switchLeft = -1, switchRight = -1;
 };
-State loadState(const std::string& directory);
+State loadState(const std::string& directory, bool* valid = nullptr);
 void saveState(const std::string& directory, const State& state);
 void ensureDirectory(const std::string& directory);
 }

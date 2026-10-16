@@ -6,3 +6,4 @@ third_party/sdk/
 third_party/downloads/
 third_party/src/
 *.core
+AGENTS.md

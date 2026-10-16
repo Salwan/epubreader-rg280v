@@ -49,6 +49,12 @@
     "sha256": "ab15fd526bd8dd18a9e77ebc139656bf4d33e97fc7238cd11bf60e2b9b8666c6",
     "url": "https://raw.githubusercontent.com/eudev-project/eudev/v3.2.10/COPYING"
   },
+  "json-LICENSE.txt": {
+    "archive_sha256": "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187",
+    "member": "json-3.12.0/LICENSE.MIT",
+    "sha256": "46a65cffd1ea955132d95a8dd921640714a8d6b537d2e4e482d31145ae95b603",
+    "url": "https://codeload.github.com/nlohmann/json/tar.gz/refs/tags/v3.12.0"
+  },
   "libdrm-MIT.txt": {
     "archive_sha256": "c554cef03b033636a975543eab363cc19081cb464595d3da1ec129f87370f888",
     "member": "libdrm-2.4.107/xf86drm.c",

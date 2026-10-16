@@ -15,13 +15,13 @@ ReaderControl ReaderControls::handle(Action action, int font, int theme, bool bu
             return {ReaderEffect::Refresh};
         }
         if (action == Action::AShort && selected_ == ReaderMenuItem::Exit) return {ReaderEffect::Quit};
+        if (action == Action::AShort && selected_ == ReaderMenuItem::Back) {
+            menuOpen_ = false; return {ReaderEffect::Back};
+        }
         if (busy) return {};
         if (selected_ == ReaderMenuItem::FontSize && (action == Action::Left || action == Action::Right)) {
             const int target = std::clamp(font + (action == Action::Right ? 1 : -1), 0, 2);
             if (target != font) return {ReaderEffect::Font, target};
-        }
-        if (action == Action::AShort && selected_ == ReaderMenuItem::Reopen) {
-            menuOpen_ = false; return {ReaderEffect::Reopen};
         }
         return {}; // Overlay consumes page turns, specimen shortcuts, and A holds.
     }
@@ -31,9 +31,6 @@ ReaderControl ReaderControls::handle(Action action, int font, int theme, bool bu
     case Action::Right: case Action::R1: return {ReaderEffect::Turn, 1};
     case Action::L2: return {ReaderEffect::Theme, (theme + 5) % 6};
     case Action::R2: return {ReaderEffect::Theme, (theme + 1) % 6};
-    case Action::B: case Action::AShort: return {ReaderEffect::Reopen};
-    case Action::Up: return {ReaderEffect::Specimen, 2};
-    case Action::Down: return {ReaderEffect::Specimen, 3};
     default: return {}; // Font size is changed only by the popup row.
     }
 }

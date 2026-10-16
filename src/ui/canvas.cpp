@@ -4,6 +4,46 @@
 #include <stdexcept>
 
 namespace epub {
+std::string bitmapText(const std::string& value, size_t cells) {
+    std::string out;
+    for (size_t i = 0; i < value.size() && out.size() < cells;) {
+        const auto first = static_cast<unsigned char>(value[i++]);
+        uint32_t cp = first;
+        if (first >= 0x80) {
+            int extra = first >= 0xc2 && first <= 0xdf ? 1 : first >= 0xe0 && first <= 0xef ? 2 : first >= 0xf0 && first <= 0xf4 ? 3 : 0;
+            if (!extra || i + static_cast<size_t>(extra) > value.size()) cp = '?';
+            else {
+                cp = first & ((1u << (6 - extra)) - 1);
+                bool valid = true;
+                for (int n = 0; n < extra; ++n) {
+                    const auto b = static_cast<unsigned char>(value[i]);
+                    if ((b & 0xc0) != 0x80) { valid = false; break; }
+                    ++i; cp = (cp << 6) | (b & 0x3f);
+                }
+                if (!valid || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff) ||
+                    (extra == 1 && cp < 0x80) || (extra == 2 && cp < 0x800) || (extra == 3 && cp < 0x10000)) cp = '?';
+            }
+        }
+        char c = '?';
+        if (cp < 128) c = cp == '\n' ? '\n' : cp >= 32 ? static_cast<char>(cp) : ' ';
+        else if ((cp >= 0xc0 && cp <= 0xc6) || (cp >= 0xe0 && cp <= 0xe6)) c = 'A';
+        else if (cp == 0xc7 || cp == 0xe7) c = 'C';
+        else if ((cp >= 0xc8 && cp <= 0xcb) || (cp >= 0xe8 && cp <= 0xeb)) c = 'E';
+        else if ((cp >= 0xcc && cp <= 0xcf) || (cp >= 0xec && cp <= 0xef)) c = 'I';
+        else if (cp == 0xd1 || cp == 0xf1) c = 'N';
+        else if ((cp >= 0xd2 && cp <= 0xd6) || (cp >= 0xf2 && cp <= 0xf6) || cp == 0xd8 || cp == 0xf8) c = 'O';
+        else if ((cp >= 0xd9 && cp <= 0xdc) || (cp >= 0xf9 && cp <= 0xfc)) c = 'U';
+        else if (cp == 0xdd || cp == 0xfd || cp == 0xff) c = 'Y';
+        else if (cp == 0xdf) c = 'S';
+        else if (cp == 0x2018 || cp == 0x2019) c = '\'';
+        else if (cp == 0x201c || cp == 0x201d) c = '"';
+        else if (cp >= 0x2010 && cp <= 0x2015) c = '-';
+        else if (cp == 0x2026) c = '.';
+        else if (cp == 0xa0) c = ' ';
+        out += c;
+    }
+    return out;
+}
 const std::array<Palette, 6> palettes{{
     {"dark", 0x101419, 0xd8dce0, 0x92b6b0, 0x444f59, 0x202930},
     {"warm", 0x272019, 0xe5d2b3, 0xc8a16c, 0x655240, 0x3b3025},
@@ -50,7 +90,7 @@ void Canvas::outline(int x, int y, int w, int h, uint32_t c) {
 }
 void Canvas::text(int x, int y, const std::string& s, uint32_t c, int scale) {
     const int start = x;
-    for (unsigned char ch : s) {
+    for (unsigned char ch : bitmapText(s)) {
         if (ch == '\n') { x = start; y += 9 * scale; continue; }
         ch = static_cast<unsigned char>(std::toupper(ch));
         if (ch < 32 || ch > 96) ch = '?';

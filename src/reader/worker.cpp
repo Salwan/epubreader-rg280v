@@ -1,5 +1,8 @@
 #include "reader/worker.hpp"
 #include "reader/engine.hpp"
+#include "reader/metadata.hpp"
+#include <array>
+#include <spawn.h>
 #include <cerrno>
 #include <chrono>
 #include <csignal>
@@ -15,6 +18,7 @@
 #include <time.h>
 #include <unistd.h>
 
+extern char** environ;
 namespace epub {
 namespace {
 constexpr size_t maxFrame = 2 * 1024 * 1024;
@@ -27,13 +31,15 @@ std::string frame(const std::string& data) {
 }
 std::string encode(const ReaderRequest& r) {
     std::ostringstream out;
-    out << static_cast<int>(r.command) << ' ' << r.value << ' ' << r.font << ' ' << r.theme << ' ' << std::quoted(r.path) << ' ' << std::quoted(r.anchor);
+    out << static_cast<int>(r.command) << ' ' << r.value << ' ' << r.font << ' ' << r.theme << ' ' << std::quoted(r.path) << ' ' << std::quoted(r.anchor)
+        << ' ' << r.requestId << ' ' << r.generation;
     return frame(out.str());
 }
 ReaderRequest decodeRequest(const std::string& data) {
     ReaderRequest r; int command = 0;
     std::istringstream in(data);
-    if (!(in >> command >> r.value >> r.font >> r.theme >> std::quoted(r.path) >> std::quoted(r.anchor)) || command < 0 || command > 5)
+    if (!(in >> command >> r.value >> r.font >> r.theme >> std::quoted(r.path) >> std::quoted(r.anchor) >> r.requestId >> r.generation) || command < 0 || command > 9 ||
+        r.path.size() > 4096 || r.anchor.size() > 16384)
         throw std::runtime_error("Invalid reader request");
     r.command = static_cast<ReaderCommand>(command); return r;
 }
@@ -43,6 +49,8 @@ std::string encode(const ReaderResult& r) {
         << r.page << ' ' << r.pageCount << ' ' << r.progress << ' ' << r.font << ' ' << r.theme << ' ' << r.images << ' ' << r.elapsedMs;
     for (const auto* s : {&r.error, &r.message, &r.identity, &r.path, &r.title, &r.author, &r.anchor, &r.pageAnchor, &r.text, &r.layoutKey})
         out << ' ' << std::quoted(*s);
+    out << ' ' << static_cast<int>(r.kind) << ' ' << static_cast<int>(r.command) << ' ' << r.commandValue << ' ' << r.requestId << ' ' << r.generation
+        << ' ' << r.more << ' ' << std::quoted(entriesJson(r.entries));
     std::string data; appendNumber(data, static_cast<uint32_t>(out.str().size())); data += out.str();
     if (!r.pixels.empty()) data.append(reinterpret_cast<const char*>(r.pixels.data()), r.pixels.size() * sizeof(uint32_t));
     return frame(data);
@@ -55,6 +63,11 @@ ReaderResult decodeResult(const std::string& data) {
     in >> r.complete >> r.pageCacheHit >> r.documentCacheHit >> r.anchorOnPage
        >> r.page >> r.pageCount >> r.progress >> r.font >> r.theme >> r.images >> r.elapsedMs;
     for (auto* s : {&r.error, &r.message, &r.identity, &r.path, &r.title, &r.author, &r.anchor, &r.pageAnchor, &r.text, &r.layoutKey}) in >> std::quoted(*s);
+    int kind = 0, command = 0; std::string entries;
+    in >> kind >> command >> r.commandValue >> r.requestId >> r.generation >> r.more >> std::quoted(entries);
+    if (kind < 0 || kind > 2 || command < 0 || command > 9) throw std::runtime_error("Invalid result kind/command");
+    r.kind = static_cast<ResultKind>(kind); r.command = static_cast<ReaderCommand>(command);
+    r.entries = parseEntries(entries, 64);
     const size_t bytes = data.size() - 4 - metadata;
     if (!in || (bytes && bytes != pixelCount * sizeof(uint32_t))) throw std::runtime_error("Invalid reader result");
     if (bytes) { r.pixels.resize(pixelCount); std::memcpy(r.pixels.data(), data.data() + 4 + metadata, bytes); }
@@ -81,51 +94,92 @@ bool sendAll(int fd, const std::string& data) {
 }
 void run(int fd, const std::string& assets, const std::string& directory) {
     std::unique_ptr<ReaderEngine> engine;
+    DirectoryCursor cursor;
     uint32_t length;
     while (readAll(fd, reinterpret_cast<char*>(&length), sizeof(length)) && length <= maxFrame) {
         std::string data(length, '\0');
         if (!readAll(fd, data.data(), length)) break;
         ReaderResult result;
+        ReaderRequest request;
+        auto tag = [&](ReaderResult& r) {
+            r.requestId = request.requestId; r.generation = request.generation; r.command = request.command; r.commandValue = request.value;
+            if (request.command == ReaderCommand::List || request.command == ReaderCommand::NextBatch) r.kind = ResultKind::Directory;
+            else if (request.command == ReaderCommand::Inspect) r.kind = ResultKind::Metadata;
+        };
         try {
-            if (!engine) engine = std::make_unique<ReaderEngine>(assets, directory);
-            result = engine->execute(decodeRequest(data), [&](const std::string& stage, int percent) {
-                ReaderResult update; update.complete = false; update.message = stage; update.progress = percent;
-                if (!sendAll(fd, encode(update))) throw std::runtime_error("Reader UI disconnected");
-            });
+            request = decodeRequest(data);
+            if (request.command == ReaderCommand::List || request.command == ReaderCommand::NextBatch) {
+                if (request.command == ReaderCommand::List) cursor.open(request.path, request.value == 1, directory, request.value == 2);
+                result.entries = cursor.next(result.more);
+            } else if (request.command == ReaderCommand::Inspect) {
+                auto entry = inspectEpub(request.path); entryProgress(entry, directory); result.entries.push_back(std::move(entry));
+            }
+            else if (request.command == ReaderCommand::Close) engine.reset();
+            else {
+                if (!engine) engine = std::make_unique<ReaderEngine>(assets, directory);
+                result = engine->execute(request, [&](const std::string& stage, int percent) {
+                    ReaderResult update; tag(update); update.complete = false; update.message = stage; update.progress = percent;
+                    if (!sendAll(fd, encode(update))) throw std::runtime_error("Reader UI disconnected");
+                });
+            }
         } catch (const std::exception& error) { result.error = error.what(); }
+        tag(result);
         if (!sendAll(fd, encode(result))) break;
-        if (result.error.empty()) {
+        if (engine && result.kind == ResultKind::Page && result.error.empty()) {
             try { engine->prefetch(); } catch (const std::exception&) { /* Derived cache is optional. */ }
         }
     }
 }
 }
-ReaderWorker::ReaderWorker(const std::string& assets, const std::string& directory) {
+int readerWorkerMain(int fd, const std::string& assets, const std::string& directory, int parent) {
+    std::signal(SIGINT, SIG_DFL); std::signal(SIGTERM, SIG_DFL);
+    ::prctl(PR_SET_PDEATHSIG, SIGTERM);
+    if (::getppid() != parent) return 0;
+    try { run(fd, assets, directory); } catch (...) { ::close(fd); return 1; }
+    ::close(fd); return 0;
+}
+ReaderWorker::ReaderWorker(const std::string& assets, const std::string& directory, std::string executable)
+    : assets_(assets), directory_(directory), executable_(std::move(executable)) {
+    if (executable_.empty()) {
+        char path[4096]; const auto n = ::readlink("/proc/self/exe", path, sizeof(path) - 1);
+        if (n <= 0) throw std::runtime_error("Cannot resolve worker executable");
+        executable_.assign(path, static_cast<size_t>(n));
+    }
+    start();
+}
+void ReaderWorker::start() {
     int sockets[2];
     if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sockets)) throw std::runtime_error("Cannot create reader socket");
-    const pid_t parent = ::getpid();
-    const pid_t child = ::fork();
-    if (child < 0) { ::close(sockets[0]); ::close(sockets[1]); throw std::runtime_error("Cannot start reader worker"); }
-    if (!child) {
-        ::close(sockets[0]);
-        std::signal(SIGINT, SIG_DFL); std::signal(SIGTERM, SIG_DFL);
-        ::prctl(PR_SET_PDEATHSIG, SIGTERM);
-        if (::getppid() != parent) _exit(0);
-        try { run(sockets[1], assets, directory); } catch (...) { ::close(sockets[1]); _exit(1); }
-        ::close(sockets[1]); _exit(0);
-    }
+    posix_spawn_file_actions_t actions;
+    int error = ::posix_spawn_file_actions_init(&actions);
+    if (error) { ::close(sockets[0]); ::close(sockets[1]); throw std::runtime_error("Cannot initialize worker spawn"); }
+    error = ::posix_spawn_file_actions_addclose(&actions, sockets[0]);
+    if (!error) error = ::posix_spawn_file_actions_adddup2(&actions, sockets[1], 3);
+    if (!error && sockets[1] != 3) error = ::posix_spawn_file_actions_addclose(&actions, sockets[1]);
+    std::array<std::string, 6> values{{executable_, "--worker", "3", assets_, directory_, std::to_string(::getpid())}};
+    std::array<char*, 7> args{};
+    for (size_t i = 0; i < values.size(); ++i) args[i] = values[i].data();
+    pid_t child = -1;
+    if (!error) error = ::posix_spawn(&child, executable_.c_str(), &actions, nullptr, args.data(), environ);
+    ::posix_spawn_file_actions_destroy(&actions);
+    if (error) { ::close(sockets[0]); ::close(sockets[1]); throw std::runtime_error("Cannot start reader worker: " + std::string(std::strerror(error))); }
     ::close(sockets[1]); fd_ = sockets[0]; pid_ = child;
     if (::fcntl(fd_, F_SETFL, O_NONBLOCK) < 0) { stop(); throw std::runtime_error("Cannot make reader socket nonblocking"); }
 }
 ReaderWorker::~ReaderWorker() { stop(); }
 bool ReaderWorker::submit(const ReaderRequest& r) {
     if (busy_ || fd_ < 0) return false;
-    outgoing_ = encode(r); sent_ = 0; busy_ = true; return true;
+    current_ = r; current_.requestId = ++sequence_; current_.generation = generation_;
+    outgoing_ = encode(current_); sent_ = 0; busy_ = true; return true;
 }
 std::optional<ReaderResult> ReaderWorker::poll() {
     if (fd_ < 0) return std::nullopt;
     auto failure = [&](const char* message) -> std::optional<ReaderResult> {
-        ReaderResult r; r.error = message; busy_ = false;
+        ReaderResult r; r.error = message; r.command = current_.command; r.commandValue = current_.value;
+        r.requestId = current_.requestId; r.generation = current_.generation;
+        if (r.command == ReaderCommand::List || r.command == ReaderCommand::NextBatch) r.kind = ResultKind::Directory;
+        else if (r.command == ReaderCommand::Inspect) r.kind = ResultKind::Metadata;
+        busy_ = false;
         ::close(fd_); fd_ = -1; return r;
     };
     if (sent_ < outgoing_.size()) {
@@ -146,6 +200,7 @@ std::optional<ReaderResult> ReaderWorker::poll() {
             try { result = decodeResult(incoming_.substr(4, length)); }
             catch (const std::exception&) { return failure("Invalid reader result"); }
             incoming_.erase(0, 4 + length);
+            if (result.generation != generation_ || result.requestId != current_.requestId) return failure("Mismatched reader response");
             if (result.complete) { busy_ = false; outgoing_.clear(); }
             return result;
         }
@@ -169,6 +224,7 @@ void ReaderWorker::stop() {
         }
         pid_ = -1;
     }
-    busy_ = false;
+    busy_ = false; outgoing_.clear(); incoming_.clear(); sent_ = 0;
 }
+void ReaderWorker::restart() { stop(); ++generation_; start(); }
 }

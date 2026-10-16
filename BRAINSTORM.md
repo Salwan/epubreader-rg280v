@@ -42,3 +42,27 @@ Ideas for the future after epubreader is complete:
 * add support for azw3 (KF8) format as the second ebook format (there's already opensource projects that implement support for it)
 * add support for mobi which is an older amazon format
 * implement a method to allow interacting with hyperlinks in the book that lead to a page/section within the book itself (not external links), adding a mouse cursor mode solely for clicking a hyperlink the way to go, perhaps can be activated by holding a button
+
+
+## Feature Requests
+
+From testing the epubreader app on device, I'll develop feature request concepts here.
+
+### Battery Percentage info
+
+Battery percentage is a critical piece of info since the RG280V device has no warnings or method to indicate low battery.
+
+* battery percentage should be part of the info shown when the popup menu is open
+* battery charging status is tracked
+* a warning visual should be shown when battery drops below 15% (and battery is not in charging state), indicator remains on screen in the form of a static red frame around the book page, maybe 2 pixels wide to make it more visible.
+* When reaching 5% battery (and battery is not in charging state), the book should be closed automatically and app transitions back to book list (to store the book current state before battery dies), then show a popup notification (in book list screen) that reading was interrupted because battery reached 5% in order not to lose progress. User is free to continue reading by reselecting the book until battery dies anyway. This procedure should resolve the situation when user falls asleep while reading a book, in which case the app will exit the book and store the status at 5% battery, then the device battery dies while on the books list screen which should be safer.
+
+### Music Tracks info
+
+At the moment, there's no indication how many music tracks were picked up during scanning and which one is playing (if playback is active). Show that info when the popup menu is open as well, keep this info compact so instead of writing the track name just a track number would be enough (and no timestamps necessary).
+
+### Low-battery shutdown
+
+I can shutdown the RG280V from the SimpleMenu interface and pretty quickly. Is there a way to initiate a shutdown from within the epubreader app?
+
+If there's, this is an additional useful action if the user fell asleep during reading. Auto-shutdown should be initiated when battery reaches 2% (as long as device is not currently charging), this should happen app-wide (regardless of which screen app is on).
