@@ -375,8 +375,9 @@ annotated acceptance remains in `docs/DEVICE-TEST-M2.md`; focused follow-up is
 
 ### Milestone 3 — Library and persistence
 
-**Implementation status:** implemented as `0.3.0`; host/build verification is
-complete and RG280V / Adam v2.1 acceptance is pending. The production library,
+**Implementation status:** accepted on RG280V / Adam v2.1 with version `0.3.0`.
+Host/build verification is complete; the user verified all core features and
+confirmed the app is fully usable on the device. The production library,
 JSON storage and slice migration, session resume, completion rules, metadata
 indexing, folder settings, and bitmap list are included. See
 [`docs/VERIFICATION-M3.md`](docs/VERIFICATION-M3.md) and the supplied

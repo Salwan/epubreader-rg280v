@@ -1,6 +1,15 @@
 # Milestone 3 device test — EPUB Reader 0.3.0
 
-Target: **RG280V / Adam v2.1**. This checklist is awaiting user testing.
+Target: **RG280V / Adam v2.1**.
+
+**Result: Milestone 3 accepted with version `0.3.0`.** The user verified all core
+features, confirmed the app is fully usable on the device, and authorized marking
+the milestone accepted.
+
+> I've verified all core features, app is now fully usable on the device.
+
+The detailed checklist below is retained as a scenario reference; acceptance is
+recorded by the user's overall core-feature confirmation above.
 
 ## Install and library folders
 

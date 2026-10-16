@@ -8,8 +8,10 @@ dist/epubreader-m3-0.3.0.opk
 SHA256: 18b6d7b02365e7c6b26788a6ec5025cc5372016ed98ec4ee132d010b3011fb78
 ```
 
-**Implementation and host/build verification are complete. Device acceptance is
-pending.** Install and test using [DEVICE-TEST-M3.md](DEVICE-TEST-M3.md).
+**Milestone 3 is accepted on RG280V / Adam v2.1 with version `0.3.0`.**
+Implementation and host/build verification are complete. The user verified all
+core features and confirmed the app is fully usable on the device; see the
+[device acceptance record](DEVICE-TEST-M3.md).
 
 ## Build and package checks
 
@@ -136,15 +138,18 @@ Representative **host** observations during verification:
 
 Timings vary with simultaneous builds and filesystem load. RSS is the maximum
 reported process figure, not a summed concurrent UI/worker memory measurement.
-The 30-second index-job watchdog is an initial target setting; its device timing
-and the actual library/reader feel remain part of on-device evaluation.
+The index-job watchdog is set to 30 seconds. The user's subsequent core-feature
+verification established device usability, as recorded below.
 
 ## Device acceptance
 
 The supplied [M3 checklist](DEVICE-TEST-M3.md) covers installation, actual card
 folders and libraries, migration, restart/reboot persistence, rename/replacement
 recovery, completion, bitmap geometry, controls, cancellation, and suspend/resume.
-These boxes remain unchecked until the user reports RG280V / Adam v2.1 results.
+The user has verified all core features, confirmed the app is fully usable on
+the device, and authorized marking **Milestone 3 accepted with version `0.3.0`**.
+The device record preserves that confirmation alongside the detailed scenarios
+as a reference.
 
 Milestone 2's accepted rendering checks and its explicitly deferred ordinary-use
 follow-up remain recorded in [DEVICE-TEST-M2.md](DEVICE-TEST-M2.md).

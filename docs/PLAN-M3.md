@@ -1,7 +1,8 @@
 # Milestone 3 — Library and persistence implementation plan
 
-**Status:** implemented in `0.3.0`; host/build verification is complete and device
-acceptance is pending. See [verification](VERIFICATION-M3.md) and the
+**Status:** accepted on RG280V / Adam v2.1 with version `0.3.0`, following the
+user's verification of all core features and confirmation of device usability.
+Host/build verification is complete. See [verification](VERIFICATION-M3.md) and the
 [device checklist](DEVICE-TEST-M3.md). The design and ordered work below record
 the implementation baseline; folder controls/rendering are integrated into the
 controller and books-list modules rather than separate chooser/control files.

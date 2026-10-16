@@ -5,7 +5,10 @@ Would be awesome if I can read epub books on my RG280V.
 
 ## Implementation status
 
-**Milestone 3: implemented as version `0.3.0`; device acceptance pending.**
+**Milestone 3: accepted on RG280V / Adam v2.1 with version `0.3.0`.**
+
+The user verified all core features and confirmed the app is fully usable on the
+device. The acceptance record is in [DEVICE-TEST-M3.md](docs/DEVICE-TEST-M3.md).
 
 The app now opens a Books List, indexes EPUB metadata without pagination, tracks
 per-book progress/completion, and resumes the last reader/list session. Content
