@@ -16,8 +16,8 @@ def png():
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 96, 96, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(pixels, 9)) + chunk(b"IEND", b"")
 
 
-def generate(destination, version, short=False):
-    title = "One-page specimen" if short else f"EPUB {version} Prose Specimen"
+def generate(destination, version, short=False, blank_pages=False):
+    title = "Blank-page navigation specimen" if blank_pages else "One-page specimen" if short else f"EPUB {version} Prose Specimen"
     chapters = []
     for chapter in range(1 if short else 3):
         body = f"<h1>Chapter {chapter + 1}</h1>"
@@ -31,6 +31,10 @@ def generate(destination, version, short=False):
             body += '<p>' + " ".join(f'W{chapter * 100 + word:04d}' for word in range(100)) + '</p>'
         body += f'<p>ENDCHAPTER{chapter + 1}</p>'
         chapters.append('<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>' + html.escape(title) + '</title><link rel="stylesheet" href="../../styles/book.css" /></head><body>' + body + '</body></html>')
+    if blank_pages:
+        # An oversized title block ends in an empty element. Pagination creates
+        # a blank page whose fallback text bookmark resolves to the title page.
+        chapters.insert(0, '<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Title</title></head><body><div style="min-height: 140px; margin: 140px 6% 2em"><h1 style="margin: 0">A quiet journey</h1><div></div></div></body></html>')
     items = [f'<item id="c{i}" href="../text/nested/chapter-{i}.xhtml" media-type="application/xhtml+xml"/>' for i in reversed(range(len(chapters)))]
     nav = '<nav xmlns:epub="http://www.idpf.org/2007/ops" epub:type="toc"><ol>' + ''.join(f'<li><a href="text/nested/chapter-{i}.xhtml">Chapter {i+1}</a></li>' for i in range(len(chapters))) + '</ol></nav>'
     items += ['<item id="css" href="../styles/book.css" media-type="text/css"/>', '<item id="img" href="../images/square.png" media-type="image/png"/>', '<item id="jpeg" href="../images/blue-square.jpg" media-type="image/jpeg"/>']
@@ -41,7 +45,7 @@ def generate(destination, version, short=False):
     modified = '<meta property="dcterms:modified">2022-09-22T00:00:00Z</meta>' if version == 3 else '<meta name="generator" content="RG280V Reader Project"/>'
     toc = ' toc="ncx"' if version == 2 else ''
     opf = f'''<?xml version="1.0"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="{version}.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">original-rg280v-{version}-{'short' if short else 'prose'}</dc:identifier><dc:title>{title}</dc:title><dc:creator>RG280V Reader Project</dc:creator><dc:language>en</dc:language>{modified}</metadata><manifest>{''.join(items)}</manifest><spine{toc}>{''.join(f'<itemref idref="c{i}"/>' for i in range(len(chapters)))}</spine></package>'''
+<package xmlns="http://www.idpf.org/2007/opf" version="{version}.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">original-rg280v-{version}-{'blank-pages' if blank_pages else 'short' if short else 'prose'}</dc:identifier><dc:title>{title}</dc:title><dc:creator>RG280V Reader Project</dc:creator><dc:language>en</dc:language>{modified}</metadata><manifest>{''.join(items)}</manifest><spine{toc}>{''.join(f'<itemref idref="c{i}"/>' for i in range(len(chapters)))}</spine></package>'''
     files = {
         "mimetype": b"application/epub+zip",
         "META-INF/container.xml": b'<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0"><rootfiles><rootfile full-path="Books/package/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>',
@@ -70,6 +74,7 @@ if __name__ == "__main__":
     generate(ROOT / "assets/books/prose-epub2.epub", 2)
     generate(ROOT / "assets/books/prose-epub3.epub", 3)
     generate(ROOT / "tests/fixtures/one-page.epub", 3, short=True)
+    generate(ROOT / "tests/fixtures/blank-pages.epub", 3, blank_pages=True)
     # Valid EPUB container with an invalid package: exercises parser failure
     # after format detection, rather than only rejection of a non-ZIP file.
     with zipfile.ZipFile(ROOT / "tests/fixtures/one-page.epub") as source:

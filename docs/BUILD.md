@@ -30,8 +30,8 @@ archives, extracts and relocates the SDK under
 builds, audits the ELF and full shared-library dependency closure, and packages:
 
 ```text
-dist/epubreader-m5.5-0.5.7.opk
-dist/epubreader-m5.5-0.5.7.opk.sha256
+dist/epubreader-m5.5-0.5.8.opk
+dist/epubreader-m5.5-0.5.8.opk.sha256
 ```
 
 The engine and hashing library are built statically. Rendering features are
@@ -57,12 +57,12 @@ Package timestamps and compile-time content do not depend on the wall clock.
 ```sh
 export OD_SDK="$PWD/third_party/sdk/gcw0-toolchain"
 export SOURCE_DATE_EPOCH=1663804800
-cmake -S . -B build/repro-m5.5-0.5.7 -G Ninja \
+cmake -S . -B build/repro-m5.5-0.5.8 -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/rg280v.cmake \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build/repro-m5.5-0.5.7 --parallel 4
-python3 scripts/package.py --build build/repro-m5.5-0.5.7 --output dist/repro-m5.5-0.5.7.opk
-cmp dist/epubreader-m5.5-0.5.7.opk dist/repro-m5.5-0.5.7.opk
+cmake --build build/repro-m5.5-0.5.8 --parallel 4
+python3 scripts/package.py --build build/repro-m5.5-0.5.8 --output dist/repro-m5.5-0.5.8.opk
+cmp dist/epubreader-m5.5-0.5.8.opk dist/repro-m5.5-0.5.8.opk
 ```
 
 The pinned SDK and squashfs-tools version are part of reproducibility. ELF and
@@ -172,7 +172,8 @@ build/host/epubreader --assets "$PWD/assets" \
     --state-dir "$PWD/tmp/manual-library-state" --books-dir "$PWD/assets/books"
 ```
 
-CTest has **nine checks**, retaining the eight M5 checks and adding `power-core`,
+CTest has **twelve checks by default**, retaining the nine M5.5 checks and adding
+three sequential page-turn checks (EPUB 2 / EPUB 3 / the original blank-page fixture),
 using isolated build-local state and dummy SDL
 video/audio where needed. Production storage checks exercise migration, schemas,
 atomic replacement, failed saves/retry, and book-before-session ordering. Storage
@@ -237,6 +238,38 @@ and the one-page book, codec roundtrips/malformed navigation data, and map
 stability through font/theme work. Preview maps use rendered document height,
 not a page-count approximation; only text anchors are persisted.
 
+### Reported blank-page / page-3 stall reproduction
+
+The focused page-turn tests use production Input → Controller → child-worker
+dispatch, alternating D-pad Right and device R1 (SDL Backspace). They wait for
+each completed request, check adjacent-page advancement, capture native page/popup
+BMPs and a text trace, check theme redraw on a blank page, backtrack across the
+opening boundary, advance again with warm caches, then exercise the 10% jump-slider
+workaround. `reader-page-turns-blank` uses the checked-in original
+`tests/fixtures/blank-pages.epub` and verifies that it still produces a blank page
+with an off-page fallback bookmark. This test failed on 0.5.7 before the fix.
+To enable the additional regression using the locally supplied book:
+
+```sh
+cmake -S . -B build/host -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+    -DEPUBREADER_PAGE_TURN_BOOK="$PWD/tmp/stuck-on-page3.epub"
+cmake --build build/host --parallel 4
+ctest --test-dir build/host -R '^reader-page-turns-' --output-on-failure
+```
+
+In **0.5.8, all four page-turn checks pass**, including `reader-page-turns-reported`.
+The supplied-book check is the thirteenth test when enabled. It now advances
+through blank pages 3 and 5 instead of looping. Outputs are under
+`build/host/page-turns-reported/` (and `page-turns-blank/` for the original fixture).
+Each run clears only its isolated state; the supplied EPUB is read in place.
+Failure diagnostics compare direct engine turns with/without the production
+prefetch call. See [the reproduction record](RUNTIME-ISSUE-PAGE-TURNS.md) and
+[0.5.8 verification](VERIFICATION-0.5.8.md).
+To remove the optional local-book check from this build, reconfigure with
+`-DEPUBREADER_PAGE_TURN_BOOK=`.
+
+### Platform diagnostic and additional checks
+
 The original platform diagnostic is also built as `epubreader-diagnostic`. Its
 tests check input timing/chords, pixel transforms, crash-interrupted state
 replacement, and real MP3
@@ -278,6 +311,11 @@ cross-build/ELF/package audits here and actual RG280V testing by the user.
 - `src/reader/`: CRengine adapter, content/layout identity, 64 MiB document cache,
   three-page native-image cache, authoritative XPointer anchors, and worker IPC.
 
+Version 0.5.8 preserves the exact layout page through neighbor prefetch, including
+its exception path. Empty pages can have fallback bookmarks pointing to earlier
+content; those text anchors remain valid for resume/re-pagination but must not
+be used to restore temporary cache-rendering navigation.
+
 The reader worker is an isolated child process started through `posix_spawn` and
 an internal executable mode, so cancellation/replacement is safe after SDL and
 storage threads exist. CRengine has no reliable load/layout cancellation API;
@@ -296,7 +334,9 @@ platform diagnostic from a current target build, use
 `python3 scripts/package.py --diagnostic`. The accepted historical M1 artifacts
 and test records retain their original versions.
 
-See [DEVICE-TEST-M5.5.md](DEVICE-TEST-M5.5.md) for installation and current evaluation,
+See [0.5.8 verification](VERIFICATION-0.5.8.md) for the current artifact, page-turn
+fix, regression and build evidence,
+[DEVICE-TEST-M5.5.md](DEVICE-TEST-M5.5.md) for installation and current evaluation,
 [CONTROLS.md](CONTROLS.md) for controls, and
 [VERIFICATION-M5.5.md](VERIFICATION-M5.5.md) for M5.5 artifact/checks.
 [POWER-PROFILE-M5.5.md](POWER-PROFILE-M5.5.md) records the observed supply profile,

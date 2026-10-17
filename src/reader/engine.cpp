@@ -257,10 +257,16 @@ void ReaderEngine::prefetch() {
     if (!e.view || e.identity.empty()) return;
     e.callbacks.progress = {};
     const int current = e.view->getCurPage();
-    for (int page : {current + 1, current - 1}) {
-        if (page >= 0 && page < e.view->getPageCount() && !e.pages.count(page)) e.pages.emplace(page, e.render(page));
+    // A blank page's fallback text bookmark can resolve to a different page.
+    // Cache work must restore this exact layout page and leave e.anchor alone.
+    try {
+        for (int page : {current + 1, current - 1}) {
+            if (page >= 0 && page < e.view->getPageCount() && !e.pages.count(page)) e.pages.emplace(page, e.render(page));
+        }
+    } catch (...) {
+        e.view->goToPage(current);
+        throw;
     }
     e.view->goToPage(current);
-    e.restore(e.anchor);
 }
 }

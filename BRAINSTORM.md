@@ -37,7 +37,8 @@
 
 ## Runtime Issues
 
-* BUG: (Book viewing issue)  two of the books I tested show the first title page(s) correctly but then when moving to the next pages (with dpad-right or R1 button), all I get is an empty screen no matter how many pages I move through. I also noticed that the info popup shows the page stuck on PAGE 2 or PAGE 3 (depending on which page has the book title apparently?). The only way I was able to get to the book's content is to use the jump slider and jump forward by a percentage which jumps into that part of the book correctly (page renders) and then I have to move back through the pages manually until reaching the first page of the book's content. Included one of the books that the problem occurs: `tmp/stuck-on-page3.epub`
+* **RESOLVED AND ACCEPTED — 0.5.8** (Book viewing issue; original report): two of the books I tested show the first title page(s) correctly but then when moving to the next pages (with dpad-right or R1 button), all I get is an empty screen no matter how many pages I move through. I also noticed that the info popup shows the page stuck on PAGE 2 or PAGE 3 (depending on which page has the book title apparently?). The only way I was able to get to the book's content is to use the jump slider and jump forward by a percentage which jumps into that part of the book correctly (page renders) and then I have to move back through the pages manually until reaching the first page of the book's content. Included one of the books that the problem occurs: `tmp/stuck-on-page3.epub`
+    * Fixed by preserving the exact displayed page during neighbor prefetch. The user verified 0.5.8 on the physical RG280V and accepted the fix on 2026-10-17. See [verification and device acceptance](docs/VERIFICATION-0.5.8.md#device-acceptance).
 
 ## Future Work
 
@@ -52,7 +53,7 @@ Ideas for the future after epubreader is complete:
 
 From testing the epubreader app on device, I'll develop feature request concepts here.
 
-### Battery Percentage info
+### Battery Percentage info (IMPLEMENTED)
 
 Battery percentage is a critical piece of info since the RG280V device has no warnings or method to indicate low battery.
 
@@ -61,13 +62,13 @@ Battery percentage is a critical piece of info since the RG280V device has no wa
 * a warning visual should be shown when battery drops below 15% (and battery is not in charging state), indicator remains on screen in the form of a static red frame around the book page, maybe 2 pixels wide to make it more visible.
 * When reaching 5% battery (and battery is not in charging state), the book should be closed automatically and app transitions back to book list (to store the book current state before battery dies), then show a popup notification (in book list screen) that reading was interrupted because battery reached 5% in order not to lose progress. User is free to continue reading by reselecting the book until battery dies anyway. This procedure should resolve the situation when user falls asleep while reading a book, in which case the app will exit the book and store the status at 5% battery, then the device battery dies while on the books list screen which should be safer.
 
-### Low-battery shutdown
+### Low-battery shutdown (IMPLEMENTED)
 
 I can shutdown the RG280V from the SimpleMenu interface and pretty quickly. Is there a way to initiate a shutdown from within the epubreader app?
 
 If there's, this is an additional useful action if the user fell asleep during reading. Auto-shutdown should be initiated when battery reaches 2% (as long as device is not currently charging), this should happen app-wide (regardless of which screen app is on).
 
-### Music Repeat
+### Music Repeat (IMPLEMENTED)
 
 Add a new menu item in the popup menu with 3 repeat options: `ALL` (default), `ONE`, and `STOP`
 
@@ -77,11 +78,11 @@ Add a new menu item in the popup menu with 3 repeat options: `ALL` (default), `O
 
 In all modes, user can move to the next track by holding `A` as normal, so repeat mode only determines what happens when playback of current track ends.
 
-### UI Tweaks
+### UI Tweaks (IMPLEMENTED)
 
 * In Books List screen, list of books should be grouped by: books that are more than 0% and less than 100% come first (reading), books that are 0% come second (unread), books that are 100% come last (read).
 
-### Better File System Integration
+### Better File System Integration (IMPLEMENTED)
 
 This applies to Adam 2.1 specifically which is the last firmware version released for the RG280V.
 

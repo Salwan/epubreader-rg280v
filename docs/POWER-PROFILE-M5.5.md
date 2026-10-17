@@ -1,4 +1,4 @@
-# M5.5 power profile — 0.5.7 production build
+# M5.5 power profile — 0.5.8 production build
 
 ## Capability status
 

@@ -1,4 +1,4 @@
-# Milestone 5.5 production build — EPUB Reader 0.5.7
+# Milestone 5.5 production build — EPUB Reader 0.5.8
 
 Target: **RG280V / Adam v2.1**. **Normal firmware shutdown confirmed by the user.**
 Version 0.5.7 promotes that verified mechanism to automatic critical-battery
@@ -6,9 +6,15 @@ handling and removes the temporary experiment. Other checklist scenarios remain
 recorded individually below. See [verification](VERIFICATION-M5.5.md),
 [controls](CONTROLS.md), and [power profile](POWER-PROFILE-M5.5.md).
 
+**0.5.8's blank-page navigation fix is resolved and device-accepted.**
+Prefetch preserves the displayed page even when its fallback bookmark resolves
+to an earlier page. Host regression/build evidence is in
+[0.5.8 verification](VERIFICATION-0.5.8.md). The user verified the delivered build
+on the physical RG280V and accepted the fix on 2026-10-17.
+
 ## Install and current shutdown capability
 
-Copy `dist/epubreader-m5.5-0.5.7.opk` into `/media/sdcard/apps` and launch
+Copy `dist/epubreader-m5.5-0.5.8.opk` into `/media/sdcard/apps` and launch
 **EPUB Reader (M5.5)**. Replace the previous reader package and remove the obsolete
 Shutdown Test OPK from the device's apps folder. M5/M3 JSON state and
 M2 import are retained; carry existing state over using the step below. A missing `musicRepeat` starts
@@ -23,10 +29,30 @@ critical-energy deadline permits best-effort shutdown with an explicit incomplet
 save report. Command errors leave a stopped list with an explanation.
 
 There is no manual Y shortcut, special test launcher, or test build option in
-0.5.7. Host preview and injected smoke/fixture inputs cannot execute real shutdown.
+0.5.8. Host preview and injected smoke/fixture inputs cannot execute real shutdown.
 
 The package contains this checklist as `DEVICE-TEST.txt`, the control reference
 as `CONTROLS.txt`, `POWER-PROFILE.txt`, and the read-only `probe-power.sh`.
+
+## 0.5.8 page-turn regression — focused evaluation
+
+- [x] User verified 0.5.8 on the physical RG280V and explicitly accepted the
+      blank-page navigation fix. The reported runtime issue is resolved.
+
+Acceptance: [user confirmation](VERIFICATION-0.5.8.md#device-acceptance).
+The scenarios below remain a reusable regression checklist for future changes.
+
+- [ ] Open each previously affected book. To start at the beginning with an
+      existing bookmark, use Select → target 0% → A.
+- [ ] Advance from cover/title into the body with D-pad Right and R1. A legitimate
+      blank page may still appear once; the next press must advance past it.
+- [ ] Open X on a blank page and confirm the page number advances after closing
+      the popup and turning again. Switch themes while the popup is closed and
+      verify the blank page's number stays unchanged during the theme redraw.
+- [ ] Turn backward with Left/L1 across the same opening pages, then forward again.
+- [ ] Jump forward with the slider, turn backward, and verify normal navigation.
+- [ ] On a prose page, cycle font sizes, then exit/relaunch and verify the saved
+      reading location. Test the same opening sequence at all three sizes.
 
 ## Confirmed shutdown result
 

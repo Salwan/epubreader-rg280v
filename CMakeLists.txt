@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(epubreader VERSION 0.5.7 LANGUAGES C CXX)
+project(epubreader VERSION 0.5.8 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -83,6 +83,25 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
     target_link_libraries(reader-tests PRIVATE reader_core)
     add_test(NAME reader-core COMMAND reader-tests "${CMAKE_SOURCE_DIR}/assets" "${CMAKE_SOURCE_DIR}/tests/fixtures" "${CMAKE_BINARY_DIR}/reader-test-state" "$<TARGET_FILE:epubreader>")
     set_tests_properties(reader-core PROPERTIES TIMEOUT 120)
+    add_executable(page-turn-tests tests/page_turn_tests.cpp)
+    target_link_libraries(page-turn-tests PRIVATE application_ui)
+    foreach(version 2 3)
+        add_test(NAME reader-page-turns-epub${version} COMMAND page-turn-tests
+            "${CMAKE_SOURCE_DIR}/assets" "${CMAKE_SOURCE_DIR}/assets/books/prose-epub${version}.epub"
+            "${CMAKE_BINARY_DIR}/page-turns-epub${version}" "$<TARGET_FILE:epubreader>")
+        set_tests_properties(reader-page-turns-epub${version} PROPERTIES TIMEOUT 120)
+    endforeach()
+    add_test(NAME reader-page-turns-blank COMMAND page-turn-tests
+        "${CMAKE_SOURCE_DIR}/assets" "${CMAKE_SOURCE_DIR}/tests/fixtures/blank-pages.epub"
+        "${CMAKE_BINARY_DIR}/page-turns-blank" "$<TARGET_FILE:epubreader>" --expect-blank)
+    set_tests_properties(reader-page-turns-blank PROPERTIES TIMEOUT 120)
+    set(EPUBREADER_PAGE_TURN_BOOK "" CACHE FILEPATH "Local EPUB for the reported page-turn regression")
+    if(EPUBREADER_PAGE_TURN_BOOK)
+        add_test(NAME reader-page-turns-reported COMMAND page-turn-tests
+            "${CMAKE_SOURCE_DIR}/assets" "${EPUBREADER_PAGE_TURN_BOOK}"
+            "${CMAKE_BINARY_DIR}/page-turns-reported" "$<TARGET_FILE:epubreader>")
+        set_tests_properties(reader-page-turns-reported PROPERTIES TIMEOUT 120)
+    endif()
     add_test(NAME reader-smoke COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/runtime_smoke.py"
         "$<TARGET_FILE:epubreader>" "${CMAKE_SOURCE_DIR}/assets" "${CMAKE_SOURCE_DIR}/tests/fixtures"
         "${CMAKE_BINARY_DIR}/reader-smoke-state" "${CMAKE_BINARY_DIR}/reader-screenshots")

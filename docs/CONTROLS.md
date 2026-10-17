@@ -1,4 +1,4 @@
-# EPUB Reader 0.5.7 — Controls
+# EPUB Reader 0.5.8 — Controls
 
 Target: RG280V / Adam v2.1. All A selections are **brief presses, activated on
 release**. A hold of 600 ms is consumed once and does not also activate a short
