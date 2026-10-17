@@ -1,6 +1,8 @@
 EPUB Reader for Anbernic RG280V
 ==========================================================
 
+Ever looked at your Anbernic RG280V and thought: this could be a great ebook reader. Well I did too, and turns out we were both right!
+
 Specific for Adam 2.1 (OpenDingux-based) firmware on Anbernic RG280V, it won't work for other Adam 2.1 devices that use a different screen as this is optimized to render on the RG280V resolution.
 
 ![EPUB Book Reader - sample render](https://github.com/Salwan/epubreader-rg280v/raw/master/screenshots/m4-six-theme-slider.png)
