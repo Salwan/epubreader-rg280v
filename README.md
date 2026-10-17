@@ -1,4 +1,4 @@
-EPUB Books Reader for Anbernic RG280V (Adam 2.1 firmware)
+EPUB Reader for Anbernic RG280V
 ==========================================================
 
 Specific for Adam 2.1 (OpenDingux-based) firmware on Anbernic RG280V, it won't work for other Adam 2.1 devices that use a different screen as this is optimized to render on the RG280V resolution.
