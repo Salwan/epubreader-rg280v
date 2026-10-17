@@ -3,6 +3,8 @@ EPUB Book Reader for RG280V
 
 Specific for Adam 2.1 (OpenDingux-based) firmware on Anbernic RG280V, it won't work for other Adam 2.1 devices that use a different screen as this is optimized to render on the RG280V resolution.
 
+![EPUB Book Reader - sample render](https://github.com/Salwan/epubreader-rg280v/raw/master/screenshots/m4-six-theme-slider.png)
+
 ## Install
 
 * Copy the epub reader's `.OPK` file to: `/media/sdcard/apps`
@@ -24,6 +26,8 @@ Try [Project Gutenberg](https://www.gutenberg.org/) for a near infinite number o
 * Monitors battery percentage and shows a visual warning when battery is low, and in case user fell asleep, will safely shutdown device when reaching 2%
 * Embedded mp3 player let's you play your ambient music tracks, download your favorite 1 hour of rain/ocean waves/fireplace/etc as mp3 and place it in the music folder
 * Embedded images are correctly rendered
+
+![EPUB Book Reader - features](https://github.com/Salwan/epubreader-rg280v/raw/master/screenshots/m4-interface-matrix.png)
 
 ## Controls
 
