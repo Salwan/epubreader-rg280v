@@ -1,11 +1,12 @@
 #pragma once
 #include "platform/input.hpp"
 #include "reader/types.hpp"
+#include "audio/repeat.hpp"
 
 namespace epub {
-enum class ReaderMenuItem { Back, FontSize, Exit };
+enum class ReaderMenuItem { Back, FontSize, MusicRepeat, Exit };
 enum class ReaderOverlay { None, Menu, Jump };
-enum class ReaderEffect { None, Refresh, Quit, Turn, Font, Theme, Back, Jump, MusicToggle, MusicSkip };
+enum class ReaderEffect { None, Refresh, Quit, Turn, Font, Theme, Back, Jump, MusicToggle, MusicSkip, Repeat };
 struct ReaderControl { ReaderEffect effect = ReaderEffect::None; int value = 0; };
 class ReaderControls {
     ReaderOverlay overlay_ = ReaderOverlay::None;
@@ -24,6 +25,6 @@ public:
     bool jumpMatches(const ReaderResult& page) const;
     void closeOverlay() { overlay_ = ReaderOverlay::None; }
     void showMenu() { overlay_ = ReaderOverlay::Menu; selected_ = ReaderMenuItem::Back; }
-    ReaderControl handle(Action action, int font, int theme, bool busy, const ReaderResult* page = nullptr);
+    ReaderControl handle(Action action, int font, int theme, bool busy, const ReaderResult* page = nullptr, RepeatMode repeat = RepeatMode::All);
 };
 }

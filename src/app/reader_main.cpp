@@ -2,24 +2,23 @@
 #include "library/identity.hpp"
 #include "ui/books_list.hpp"
 #include "platform/mixer.hpp"
+#include "platform/paths.hpp"
 #include <chrono>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <iomanip>
 #include <memory>
+#include <atomic>
 #include <stdexcept>
+#include <vector>
 #include <time.h>
 #include <unistd.h>
 
 namespace {
 volatile sig_atomic_t interrupted = 0;
 void signalHandler(int) { interrupted = 1; }
-uint64_t suspendClock() {
-    struct timespec time{};
-    if (clock_gettime(CLOCK_BOOTTIME, &time) != 0) return SDL_GetTicks();
-    return static_cast<uint64_t>(time.tv_sec) * 1000 + static_cast<uint64_t>(time.tv_nsec) / 1000000;
-}
 std::string executableDirectory() {
     char path[4096]; const ssize_t n = readlink("/proc/self/exe", path, sizeof(path) - 1);
     if (n <= 0) return ".";
@@ -42,14 +41,17 @@ int main(int argc, char** argv) {
             return epub::readerWorkerMain(std::stoi(argv[2]), argv[3], argv[4], std::stoi(argv[5]));
 #ifdef EPUBREADER_DEVICE
         bool native = true, restoreMixer = true;
+        constexpr bool deviceBuild = true;
         setenv("SDL_VIDEO_KMSDRM_SCALING_MODE", "0", 1);
 #else
         bool native = false, restoreMixer = false;
+        constexpr bool deviceBuild = false;
 #endif
         const char* home = std::getenv("HOME");
         const std::string homePath = epub::absolutePath(home ? home : ".");
-        std::string assets = executableDirectory() + "/assets", stateDirectory = homePath + "/.epubreader";
-        std::string book, smoke, booksFolder, musicFolder, mixerCard = "default";
+        const auto defaults = epub::defaultAppPaths(homePath, deviceBuild);
+        std::string assets = executableDirectory() + "/assets", stateDirectory = defaults.state;
+        std::string book, smoke, booksFolder, musicFolder, powerFixture, mixerCard = "default";
         for (int i = 1; i < argc; ++i) {
             const std::string arg = argv[i];
             auto value = [&]() -> std::string { if (++i >= argc) throw std::runtime_error("Missing value for " + arg); return argv[i]; };
@@ -58,20 +60,23 @@ int main(int argc, char** argv) {
             else if (arg == "--book") book = epub::absolutePath(value());
             else if (arg == "--books-dir") booksFolder = epub::absolutePath(value());
             else if (arg == "--music-dir") musicFolder = epub::absolutePath(value());
+            else if (arg == "--power-fixture") powerFixture = epub::absolutePath(value());
             else if (arg == "--mixer-card") mixerCard = value();
             else if (arg == "--restore-mixer") restoreMixer = true;
             else if (arg == "--observe-only") restoreMixer = false;
             else if (arg == "--smoke-test") smoke = epub::absolutePath(value());
             else if (arg == "--native-window") native = true;
             else if (arg == "--help") {
-                std::cout << "EPUB Reader " EPUBREADER_VERSION " / Milestone 5\n"
+                std::cout << "EPUB Reader " EPUBREADER_VERSION " / Milestone 5.5\n"
                     << "--assets DIR --state-dir DIR --book FILE --books-dir DIR --music-dir DIR --native-window --smoke-test DIR\n"
                     << "--mixer-card CARD --restore-mixer --observe-only (host defaults to observation only)\n"
+                    << "--power-fixture DIR (injected sysfs tree; shutdown always unavailable)\n"
+                    << "Default state: " << defaults.state << "; content: " << defaults.contentRoot << "/books and " << defaults.contentRoot << "/music\n"
                     << "Default: books list, or the last successfully opened reader session.\n"
                     << "List: arrows select/page; A opens; X settings/folders; E/R themes.\n"
                     << "Reader: left/right or Q/W pages; X menu; E/R themes; Escape jump slider.\n"
                     << "Reader A: brief press starts/pauses/resumes music; hold 600ms skips once.\n"
-                    << "Menu: up/down selects; left/right adjusts Font size; A activates; B/X closes.\n"
+                    << "Menu: up/down selects; left/right adjusts Font size / Music Repeat; A activates; B/X closes.\n"
                     << "Jump: left/right -/+1%; up/down +/-10%; brief A jumps; B/Escape cancels; X menu.\n"
                     << "Escape+Enter: save and exit everywhere. Music scans once at startup; folder changes apply next launch.\n";
                 return 0;
@@ -82,16 +87,29 @@ int main(int argc, char** argv) {
         std::cout.setf(std::ios::unitbuf);
         if (!std::freopen((stateDirectory + "/reader.log").c_str(), "w", stdout) ||
             !std::freopen((stateDirectory + "/stderr.log").c_str(), "w", stderr)) throw std::runtime_error("Cannot open reader logs");
-        std::cout << "EPUBREADER " EPUBREADER_VERSION " Milestone 5\nassets=" << assets << "\nstate=" << stateDirectory << '\n';
-        epub::Store store(stateDirectory, smoke.empty() ? homePath : stateDirectory + "/home");
+        std::cout << "LAUNCH pid=" << getpid() << " boot-ms=" << epub::powerClock()
+            << " uid=" << getuid() << " euid=" << geteuid() << " gid=" << getgid() << " egid=" << getegid() << '\n';
+        const int count = getgroups(0, nullptr);
+        std::vector<gid_t> groups(count > 0 ? static_cast<size_t>(count) : 0);
+        const int obtained = count >= 0 ? getgroups(count, groups.data()) : -1;
+        std::cout << "PROCESS GROUPS";
+        if (obtained < 0) std::cout << " unavailable";
+        else for (int i = 0; i < obtained; ++i) std::cout << ' ' << groups[static_cast<size_t>(i)];
+        std::cout << '\n';
+        std::cout << "ARGV";
+        for (int i = 0; i < argc; ++i) std::cout << ' ' << std::quoted(argv[i]);
+        std::cout << '\n';
+        std::cout << "EPUBREADER " EPUBREADER_VERSION " Milestone 5.5\nassets=" << assets << "\nstate=" << stateDirectory << '\n';
+        epub::Store store(stateDirectory, smoke.empty() ? defaults.contentRoot : stateDirectory + "/home");
         if (!booksFolder.empty()) store.config.books = booksFolder;
         if (!musicFolder.empty()) store.config.music = musicFolder;
+        std::cout << "books=" << store.config.books << "\nmusic=" << store.config.music << '\n';
         if (!smoke.empty()) store.config.preferences = {};
         epub::ReaderWorker worker(assets, stateDirectory);
         std::signal(SIGINT, signalHandler); std::signal(SIGTERM, signalHandler);
         SDLGuard guard;
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) throw std::runtime_error(SDL_GetError());
-        SDL_WM_SetCaption("EPUB Reader - RG280V Milestone 5", nullptr);
+        SDL_WM_SetCaption("EPUB Reader - RG280V Milestone 5.5", nullptr);
         SDL_ShowCursor(SDL_DISABLE); SDL_EnableKeyRepeat(0, 0);
         SDL_Surface* display = SDL_SetVideoMode(native ? 320 : 640, 480, 16,
             native && smoke.empty() ? SDL_HWSURFACE | SDL_DOUBLEBUF : SDL_SWSURFACE);
@@ -105,7 +123,34 @@ int main(int argc, char** argv) {
         }
         epub::Audio audio;
         epub::Music music(audio, store.config.music);
-        epub::Controller app(store, worker, book, &music);
+        std::string powerRoot = powerFixture;
+#ifdef EPUBREADER_DEVICE
+        if (powerRoot.empty() && smoke.empty()) powerRoot = "/sys/class/power_supply";
+#endif
+        epub::SysfsPower source(powerRoot);
+        std::atomic<bool> resetPower{false};
+        epub::PowerObserver observer([&] {
+            if (resetPower.exchange(false)) source.reset();
+            if (powerRoot.empty()) return epub::PowerSnapshot{};
+            auto sample = source.sample(epub::powerClock());
+            std::cout << "POWER SAMPLE " << sample.sequence << " boot-ms=" << sample.sampled << " profile=" << sample.profile
+                << " uV=" << (sample.microvolts ? std::to_string(*sample.microvolts) : "unknown")
+                << ' ' << sample.label(sample.sampled) << " error=" << sample.error << '\n';
+            return sample;
+        });
+        // Normal shutdown was confirmed from the OPK on RG280V / Adam v2.1.
+        // Host, smoke and fixture runs cannot enable real firmware commands.
+#if defined(EPUBREADER_DEVICE) && defined(__mips__)
+        const bool poweroffEnabled = smoke.empty() && powerFixture.empty();
+#else
+        constexpr bool poweroffEnabled = false;
+#endif
+        epub::NormalPoweroff poweroff(poweroffEnabled, [&] {
+            return epub::canPoweroffAdam(observer.snapshot(), epub::powerClock());
+        });
+        std::cout << "POWER BACKEND enabled=" << poweroffEnabled << " device=" << deviceBuild
+            << " smoke=" << !smoke.empty() << " fixture=" << !powerFixture.empty() << " profile=jz-battery/usb-charger\n";
+        epub::Controller app(store, worker, book, &music, &poweroff);
         auto shutdown = [&] {
             music.endBook();
             if (mixer) {
@@ -167,27 +212,32 @@ int main(int argc, char** argv) {
             present(canvas, display, native); shutdown();
             std::cout << "SMOKE PASS: production music, popup font controls, six-theme menus/slider previews, native composition, JSON state\n"; return 0;
         }
-        uint64_t lastLoop = suspendClock();
+        uint64_t lastLoop = epub::powerClock();
         bool running = true;
         epub::VolumeCheckpoint volume;
         uint32_t volumePoll = 0;
-        while (running && !app.quit() && !interrupted) {
-            const uint32_t now = SDL_GetTicks(); const uint64_t clock = suspendClock();
-            if (clock - lastLoop > 1500) input.reset();
+        while (running && !app.quit()) {
+            const uint32_t now = SDL_GetTicks(); const uint64_t clock = epub::powerClock();
+            if (clock < lastLoop || clock - lastLoop > 1500) {
+                input.reset(); app.invalidatePower(); resetPower = true; observer.refresh();
+            }
             lastLoop = clock;
+            // Capture the newest mixer observation before a power transition takes ownership.
+            if (mixer && now - volumePoll >= 100) {
+                mixer->poll(); volumePoll = now;
+                if (restoreMixer) volume.observe(mixer->selected(), store.config.preferences, now);
+            }
+            app.power(observer.snapshot(), clock); consumeTransition();
+            if (interrupted) { interrupted = 0; dispatch(epub::Action::Quit); }
             SDL_Event event;
             while (SDL_PollEvent(&event)) {
-                if (event.type == SDL_QUIT) running = false;
+                if (event.type == SDL_QUIT) dispatch(epub::Action::Quit);
                 else if (event.type == SDL_ACTIVEEVENT && !event.active.gain) input.reset();
                 else if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) dispatch(input.key(event.key.keysym.sym, event.type == SDL_KEYDOWN, now));
                 if (app.quit()) break;
             }
             if (!running || app.quit()) break;
             dispatch(input.tick(now)); app.tick(now); consumeTransition();
-            if (mixer && now - volumePoll >= 100) {
-                mixer->poll(); volumePoll = now;
-                if (restoreMixer) volume.observe(mixer->selected(), store.config.preferences, now);
-            }
             if (volume.due(now)) store.saveConfig();
             if (app.changed()) { epub::renderApplication(canvas, app); present(canvas, display, native); }
             SDL_Delay(8);

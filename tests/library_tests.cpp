@@ -47,14 +47,20 @@ int main(int argc, char** argv) {
             char name[16]; std::snprintf(name, sizeof(name), "%04d", n);
             epub::LibraryEntry e; e.path = "/library/" + std::string(name) + ".epub"; e.title = name;
             e.identity = n == 500 ? id : std::string(32, 'b'); e.inspected = true; e.finished = n % 3 == 0;
+            e.progress = n % 3 == 0 ? 10000 : n % 3 == 1 ? 1 : 0;
             large.push_back(e);
         }
         catalog.observe(large); catalog.finish(true);
         check(catalog.entries.size() == 1000 && catalog.current()->path == session.selectedPath, "Large-library selection restoration");
-        check(!catalog.entries.front().finished && catalog.entries.back().finished, "Finished grouping");
+        check(epub::progressGroupRank(catalog.entries.front().progress) == 0 && epub::progressGroupRank(catalog.entries.back().progress) == 2, "Progress grouping");
+        for (size_t n = 1; n < catalog.entries.size(); ++n) check(epub::progressGroupRank(catalog.entries[n - 1].progress) <= epub::progressGroupRank(catalog.entries[n].progress), "Noncontiguous groups");
+        for (int progress : {-1, 0, 1, 99, 100, 9999, 10000}) check(epub::progressGroupRank(progress) == (progress > 0 && progress < 10000 ? 0 : progress == 10000 ? 2 : 1), "Raw group boundary");
+        check(epub::progressLabel(1) == "<1%" && epub::progressLabel(99) == "<1%" && epub::progressLabel(100) == "1%" && epub::progressLabel(-1) == "0%", "Sub-one percent display");
         check(catalog.top() <= catalog.selected() && catalog.selected() < catalog.top() + epub::libraryRows, "Selected entry offscreen");
         epub::BookState book; book.identity = id; book.path = session.selectedPath; book.title = "Z story"; book.finished = true; book.progress = 10000;
         catalog.update(book); check(catalog.current()->identity == id && catalog.current()->finished, "Completion reorder lost selection");
+        book.progress = 4000; catalog.update(book);
+        check(catalog.current()->finished && epub::progressGroupRank(catalog.current()->progress) == 0, "Sticky completion incorrectly grouped as Read");
         catalog.remember(session); catalog.begin("/library", session);
         auto renamed = *catalog.current(); renamed.path = "/library/renamed.epub";
         catalog.observe(renamed); catalog.finish(true);

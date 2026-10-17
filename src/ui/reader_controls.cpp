@@ -6,7 +6,7 @@ bool ReaderControls::jumpMatches(const ReaderResult& page) const {
     return jumpOpen() && page.validNavigation() && page.identity == identity_ && page.layoutKey == layout_
         && page.anchor == anchor_ && page.page == originPage_ && page.pageCount == pageCount_;
 }
-ReaderControl ReaderControls::handle(Action action, int font, int theme, bool busy, const ReaderResult* page) {
+ReaderControl ReaderControls::handle(Action action, int font, int theme, bool busy, const ReaderResult* page, RepeatMode repeat) {
     if (action == Action::Quit) return {ReaderEffect::Quit};
     if (action == Action::X) {
         if (menuOpen()) closeOverlay(); else showMenu();
@@ -15,12 +15,16 @@ ReaderControl ReaderControls::handle(Action action, int font, int theme, bool bu
     if (menuOpen()) {
         if (action == Action::B) { closeOverlay(); return {ReaderEffect::Refresh}; }
         if (action == Action::Up || action == Action::Down) {
-            selected_ = static_cast<ReaderMenuItem>(std::clamp(static_cast<int>(selected_) + (action == Action::Down ? 1 : -1), 0, 2));
+            selected_ = static_cast<ReaderMenuItem>(std::clamp(static_cast<int>(selected_) + (action == Action::Down ? 1 : -1), 0, 3));
             return {ReaderEffect::Refresh};
         }
         if (action == Action::AShort && selected_ == ReaderMenuItem::Exit) return {ReaderEffect::Quit};
         if (action == Action::AShort && selected_ == ReaderMenuItem::Back) {
             closeOverlay(); return {ReaderEffect::Back};
+        }
+        if (selected_ == ReaderMenuItem::MusicRepeat && (action == Action::Left || action == Action::Right)) {
+            const int target = std::clamp(static_cast<int>(repeat) + (action == Action::Right ? 1 : -1), 0, 2);
+            if (target != static_cast<int>(repeat)) return {ReaderEffect::Repeat, target};
         }
         if (busy) return {};
         if (selected_ == ReaderMenuItem::FontSize && (action == Action::Left || action == Action::Right)) {

@@ -26,8 +26,10 @@ def main():
     parser.add_argument("--diagnostic", action="store_true", help="Package the original platform diagnostic instead")
     args = parser.parse_args()
     version = re.search(r"project\(epubreader VERSION ([\d.]+)", (ROOT / "CMakeLists.txt").read_text()).group(1)
-    package_name = f"epubreader-diagnostic-m1-{version}" if args.diagnostic else f"epubreader-m5-{version}"
-    build, output = args.build.resolve(), (args.output or ROOT / "dist" / (package_name + ".opk")).resolve()
+    build = args.build.resolve()
+    build.relative_to(ROOT)
+    package_name = f"epubreader-diagnostic-m1-{version}" if args.diagnostic else f"epubreader-m5.5-{version}"
+    output = (args.output or ROOT / "dist" / (package_name + ".opk")).resolve()
     # Only generated, project-local staging/output directories may be modified.
     build.relative_to(ROOT); output.relative_to(ROOT)
     sdk = ROOT / "third_party/sdk/gcw0-toolchain"
@@ -35,14 +37,16 @@ def main():
     readelf = sdk / "bin/mipsel-linux-readelf"
     strip = sdk / "bin/mipsel-linux-strip"
     binary = build / ("epubreader-diagnostic" if args.diagnostic else "epubreader")
+    if not args.diagnostic and f"EPUBREADER {version} Milestone 5.5".encode() not in binary.read_bytes():
+        raise SystemExit("Build version differs from executable; rebuild before packaging")
     header = subprocess.check_output([str(readelf), "-h", str(binary)], text=True)
     if not all(s in header for s in ("ELF32", "little endian", "mips32r2", "o32")):
         raise SystemExit("Refusing to package a non-MIPS32r2/o32 little-endian executable")
     interpreter = subprocess.check_output([str(readelf), "-l", str(binary)], text=True)
     if "/lib/ld-uClibc.so.0" not in interpreter:
         raise SystemExit("Unexpected ELF interpreter")
-    version = subprocess.check_output(["mksquashfs", "-version"], text=True)
-    if "version 4.6.1" not in version:
+    squashfs_version = subprocess.check_output(["mksquashfs", "-version"], text=True)
+    if "version 4.6.1" not in squashfs_version:
         raise SystemExit("Reproducible packaging requires squashfs-tools 4.6.1")
     stage = build / "opk-stage"
     if stage.exists():
@@ -90,13 +94,15 @@ def main():
     shutil.copytree(notices, stage / "licenses")
     desktop = "epubreader-diagnostic.gcw0.desktop" if args.diagnostic else "epubreader.gcw0.desktop"
     launcher = "launch.sh" if args.diagnostic else "launch-reader.sh"
-    checklist = "DEVICE-TEST-0.1.1.md" if args.diagnostic else "DEVICE-TEST-M5.md"
+    checklist = "DEVICE-TEST-0.1.1.md" if args.diagnostic else "DEVICE-TEST-M5.5.md"
     for source, target in (("LICENSE.md", "LICENSE.md"), ("third_party/README.md", "licenses/DEPENDENCIES.md"), ("third_party/manifest.json", "dependencies.json"), ("docs/" + checklist, "DEVICE-TEST.txt"), ("packaging/" + desktop, desktop), ("packaging/" + launcher, "launch.sh"), ("packaging/epubreader.png", "epubreader.png")):
         shutil.copyfile(ROOT / source, stage / target)
     if not args.diagnostic:
         shutil.copyfile(ROOT / "docs/CONTROLS.md", stage / "CONTROLS.txt")
+        shutil.copyfile(ROOT / "docs/POWER-PROFILE-M5.5.md", stage / "POWER-PROFILE.txt")
+        shutil.copyfile(ROOT / "scripts/probe-power.sh", stage / "probe-power.sh")
     for path in sorted(stage.rglob("*")) + [stage]:
-        executable = path.is_dir() or path.name in ("launch.sh", binary.name)
+        executable = path.is_dir() or path.name in ("launch.sh", "probe-power.sh", binary.name)
         path.chmod(0o755 if executable else 0o644)
         os.utime(path, (EPOCH, EPOCH))
     output.parent.mkdir(parents=True, exist_ok=True)

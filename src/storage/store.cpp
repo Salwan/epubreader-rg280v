@@ -58,7 +58,7 @@ long mixerInteger(const Json& j, const char* key, long fallback) {
 Json configJson(const Config& c) {
     const State& p = c.preferences;
     return {{"schema", 1}, {"theme", palettes.at(static_cast<size_t>(p.theme)).name}, {"font", fonts[p.font]},
-        {"books", c.books}, {"music", c.music}, {"volume", p.volume}, {"mixer", p.mixer},
+        {"books", c.books}, {"music", c.music}, {"musicRepeat", repeatName(c.musicRepeat)}, {"volume", p.volume}, {"mixer", p.mixer},
         {"minimum", p.minimum}, {"maximum", p.maximum}, {"rawLeft", p.rawLeft}, {"rawRight", p.rawRight},
         {"switchLeft", p.switchLeft}, {"switchRight", p.switchRight}};
 }
@@ -137,9 +137,9 @@ BookState readBook(const std::string& root, const std::string& identity) {
     b.finished = j.value("finished", false);
     return b;
 }
-Store::Store(std::string root, const std::string& home) : root_(std::move(root)) {
+Store::Store(std::string root, const std::string& contentRoot) : root_(std::move(root)) {
     ensureDirectory(root_);
-    config.books = home + "/books"; config.music = home + "/music";
+    config.books = contentRoot + "/books"; config.music = contentRoot + "/music";
     migrate();
     load(root_ + "/config.json", [&](const Json& j) {
         Config c = config;
@@ -151,6 +151,11 @@ Store::Store(std::string root, const std::string& home) : root_(std::move(root))
         p.minimum = mixerInteger(j, "minimum", 0); p.maximum = mixerInteger(j, "maximum", 0);
         p.rawLeft = mixerInteger(j, "rawLeft", -1); p.rawRight = mixerInteger(j, "rawRight", -1);
         p.switchLeft = integer(j, "switchLeft", -1, -1, 1); p.switchRight = integer(j, "switchRight", -1, -1, 1);
+        if (j.contains("musicRepeat")) {
+            if (j["musicRepeat"] == "one") c.musicRepeat = RepeatMode::One;
+            else if (j["musicRepeat"] == "stop") c.musicRepeat = RepeatMode::Stop;
+            else if (j["musicRepeat"] != "all") errors_.push_back("Invalid Music Repeat; recovered to ALL");
+        }
         config = std::move(c);
     }, errors_);
     load(root_ + "/session.json", [&](const Json& j) {
@@ -201,8 +206,10 @@ Store::~Store() {
 void Store::enqueue(std::string key, std::function<void()> run) {
     std::lock_guard<std::mutex> lock(mutex_);
     failed_.erase(std::remove_if(failed_.begin(), failed_.end(), [&](const auto& item) { return item.key == key; }), failed_.end());
-    if (!pending_.empty() && pending_.back().key == key) pending_.back().run = std::move(run);
-    else pending_.push_back({std::move(key), std::move(run)});
+    const auto revision = ++writeRevisions_[key];
+    Write write{key, std::move(run), 0, revision};
+    if (!pending_.empty() && pending_.back().key == key && !pending_.back().ticket) pending_.back() = std::move(write);
+    else pending_.push_back(std::move(write));
     wake_.notify_one();
 }
 void Store::loop() {
@@ -215,9 +222,14 @@ void Store::loop() {
         std::string error;
         try { item.run(); } catch (const std::exception& e) { error = e.what(); }
         lock.lock();
-        if (!error.empty()) {
+        if (item.ticket) {
+            auto& result = critical_.at(item.ticket).result;
+            result.state = error.empty() ? CheckpointState::Succeeded : CheckpointState::Failed;
+            result.error = error;
+        }
+        if (!error.empty() && (!item.ticket || item.revision == sessionRevision_)) {
             errors_.push_back("SAVE ERROR: " + error);
-            if (std::none_of(pending_.begin(), pending_.end(), [&](const auto& next) { return next.key == item.key; })) failed_.push_back(std::move(item));
+            if (!item.ticket && item.revision == writeRevisions_[item.key] && std::none_of(pending_.begin(), pending_.end(), [&](const auto& next) { return next.key == item.key; })) failed_.push_back(std::move(item));
         }
         active_ = false; if (pending_.empty()) drained_.notify_all();
     }
@@ -254,6 +266,50 @@ void Store::checkpoint(const BookState& b) {
 }
 void Store::saveCatalog(std::function<std::string()> serialize) {
     enqueue("catalog", [root = root_, serialize = std::move(serialize)] { writeDocument(root + "/cache", "library.json", serialize()); });
+}
+CheckpointTicket Store::criticalCheckpoint(const std::optional<BookState>& b) {
+    // Serialize on the owner thread; the worker never reads mutable app state.
+    const auto bookData = b ? bookJson(*b).dump(2) + '\n' : std::string{};
+    const auto sessionData = sessionJson(session).dump(2) + '\n', configData = configJson(config).dump(2) + '\n';
+    if (b) books_[b->identity] = *b;
+    const auto revision = ++sessionRevision_;
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto ticket = ++nextTicket_;
+    ++writeRevisions_["config"]; ++writeRevisions_["session"];
+    if (b) ++writeRevisions_["book:" + b->identity];
+    const auto superseded = [&](const Write& w) { return !w.ticket && (w.key == "config" || w.key == "session" || (b && w.key == "book:" + b->identity)); };
+    pending_.erase(std::remove_if(pending_.begin(), pending_.end(), superseded), pending_.end());
+    failed_.erase(std::remove_if(failed_.begin(), failed_.end(), superseded), failed_.end());
+    Write write{"critical", [this, root = root_, b, bookData, sessionData, configData, revision] {
+        std::string stage = "book";
+        try {
+            if (revision != sessionRevision_) throw std::runtime_error("Checkpoint superseded");
+            if (b) writeDocument(root + "/books", b->identity + ".json", bookData);
+            stage = "session";
+            if (revision != sessionRevision_) throw std::runtime_error("Checkpoint session superseded");
+            writeDocument(root, "session.json", sessionData);
+            stage = "config"; writeDocument(root, "config.json", configData);
+        } catch (const std::exception& e) { throw std::runtime_error(stage + ": " + e.what()); }
+    }, ticket, revision};
+    critical_.emplace(ticket, Critical{write, {}}); pending_.push_front(std::move(write));
+    wake_.notify_one(); return ticket;
+}
+CheckpointResult Store::criticalResult(CheckpointTicket ticket) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto i = critical_.find(ticket);
+    return i == critical_.end() ? CheckpointResult{CheckpointState::Failed, 0, "Unknown checkpoint ticket"} : i->second.result;
+}
+bool Store::retryCritical(CheckpointTicket ticket) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto& c = critical_.at(ticket);
+    if (c.result.state != CheckpointState::Failed || c.result.attempts >= 2) return false;
+    c.result.state = CheckpointState::Pending; c.result.error.clear(); ++c.result.attempts;
+    pending_.push_front(c.write); wake_.notify_one(); return true;
+}
+void Store::forgetCritical(CheckpointTicket ticket) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto i = critical_.find(ticket);
+    if (i != critical_.end() && i->second.result.state != CheckpointState::Pending) critical_.erase(i);
 }
 bool Store::idle() { std::lock_guard<std::mutex> lock(mutex_); return pending_.empty() && !active_; }
 void Store::flush() { std::unique_lock<std::mutex> lock(mutex_); drained_.wait(lock, [&] { return pending_.empty() && !active_; }); }

@@ -4,7 +4,7 @@
 namespace epub {
 void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
                        const ReaderControls& controls, bool busy, const std::string& status,
-                       const MusicSnapshot& music) {
+                        const MusicSnapshot& music, const std::string& battery, bool warning) {
     const auto& palette = palettes[static_cast<size_t>(theme)];
     canvas.clear(palette.background);
     if (page.pixels.size() == canvas.pixels.size()) canvas.pixels = page.pixels;
@@ -19,36 +19,38 @@ void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
     };
     auto line = [&](int y, const std::string& text) { canvas.text(10, y, bitmapLine(text, 50), palette.text); };
     if (controls.menuOpen() || page.pixels.empty()) {
-        panel(8, 154);
-        line(18, "EPUB READER " EPUBREADER_VERSION " / MILESTONE 5");
+        panel(8, 170);
+        line(18, "EPUB READER " EPUBREADER_VERSION " / MILESTONE 5.5");
         line(44, page.title.empty() ? "OPENING BOOK" : page.title);
         line(64, page.author);
         line(86, page.path.substr(page.path.find_last_of('/') + 1));
         line(110, "PAGE " + std::to_string(page.page + 1) + " / " + std::to_string(page.pageCount) + " / " + palette.name);
         line(138, music.label());
+        line(158, battery);
     }
     if (controls.menuOpen()) {
         panel(180, 210);
-        const std::array<std::string, 3> rows{{"BACK TO BOOK LIST",
+        const std::array<std::string, 4> rows{{"BACK TO BOOK LIST",
             std::string("FONT SIZE: ") + (page.font > 0 ? "< " : "  ")
             + std::array<const char*, 3>{{"SMALL", "MEDIUM", "LARGE"}}[static_cast<size_t>(page.font)]
-            + (page.font < 2 ? " >" : "  "), "EXIT APPLICATION"}};
+            + (page.font < 2 ? " >" : "  "), std::string("MUSIC REPEAT: ") + (music.repeat != RepeatMode::All ? "< " : "  ")
+            + repeatLabel(music.repeat) + (music.repeat != RepeatMode::Stop ? " >" : "  "), "EXIT APPLICATION"}};
         for (size_t item = 0; item < rows.size(); ++item) {
-            const int y = 194 + static_cast<int>(item) * 32;
+            const int y = 194 + static_cast<int>(item) * 28;
             if (item == static_cast<size_t>(controls.selected())) {
                 canvas.outline(8, y - 6, 304, 26, palette.accent);
                 canvas.text(12, y, ">", palette.accent);
             }
             canvas.text(26, y, rows[item], palette.text);
         }
-        line(302, "UP/DOWN: SELECT   A: ACTIVATE");
-        line(324, "FONT SIZE: LEFT/RIGHT TO ADJUST");
-        line(346, "B OR X: CLOSE MENU");
-        line(368, "SELECT+START: SAVE AND EXIT");
+        line(310, "UP/DOWN: SELECT   A: ACTIVATE");
+        line(332, "FONT/REPEAT: LEFT/RIGHT TO ADJUST");
+        line(354, "B OR X: CLOSE MENU");
+        line(376, "SELECT+START: SAVE AND EXIT");
     } else if (page.pixels.empty()) {
         panel(180, 154);
         line(194, "X: OPEN MENU");
-        line(222, "MENU: BACK TO BOOK LIST / FONT / EXIT");
+        line(222, "MENU: BACK / FONT / REPEAT / EXIT");
         line(250, "SELECT+START: SAVE AND EXIT");
     }
     if (controls.jumpOpen()) {
@@ -67,6 +69,11 @@ void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
         panel(404, 64);
         line(412, busy ? "READER WORKING / SELECT+START EXITS" : "READER STATUS");
         line(438, status.empty() ? music.detail : status);
+    }
+    if (warning && !page.pixels.empty()) {
+        constexpr uint32_t red = 0xe03030;
+        canvas.rect(0, 0, 320, 2, red); canvas.rect(0, 476, 320, 2, red);
+        canvas.rect(0, 2, 2, 474, red); canvas.rect(318, 2, 2, 474, red);
     }
     canvas.rect(0, 478, 320, 2, palette.background);
     canvas.rect(0, 478, 320 * std::clamp(page.progress, 0, 10000) / 10000, 2, palette.muted);

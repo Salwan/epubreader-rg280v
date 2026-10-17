@@ -10,6 +10,7 @@
 #include <memory>
 #include <stdexcept>
 #include <thread>
+#include <atomic>
 
 namespace {
 void check(bool ok, const std::string& message) { if (!ok) throw std::runtime_error(message); }
@@ -27,14 +28,15 @@ struct Harness {
         void chirp() override { ++chirps; }
         bool tick() override { ++ticks; return false; }
         epub::MusicSnapshot snapshot() const override { return state; }
+        void setRepeat(epub::RepeatMode mode) override { state.repeat = mode; }
     } music;
     epub::Store store;
     epub::ReaderWorker worker;
     epub::Controller app;
     epub::Input input;
     uint32_t inputNow = 1000;
-    Harness(const std::string& root, const std::string& assets, const std::string& executable, const std::string& book = {}, epub::MusicPort* port = nullptr)
-        : store(root, root + "/home"), worker(assets, root, executable), app(store, worker, book, port ? port : &music) {}
+    Harness(const std::string& root, const std::string& assets, const std::string& executable, const std::string& book = {}, epub::MusicPort* port = nullptr, epub::PoweroffPort* poweroff = nullptr)
+        : store(root, root + "/home"), worker(assets, root, executable), app(store, worker, book, port ? port : &music, poweroff) {}
     ~Harness() { app.shutdown(); }
     void dispatch(epub::Action action) { app.action(action); app.consumeTransition(input); }
     void key(SDLKey key, bool down) { dispatch(input.key(key, down, inputNow)); }
@@ -66,6 +68,202 @@ void target(Harness& h, int percent) {
     for (int n = 0; n < percent / 10; ++n) h.dispatch(epub::Action::Up);
     for (int n = 0; n < percent % 10; ++n) h.dispatch(epub::Action::Right);
     check(h.app.readerControls.targetPercent() == percent, "Target adjustment failed");
+}
+epub::PowerSnapshot battery(int percent, uint32_t sequence, uint64_t time = 1000) {
+    epub::PowerSnapshot s; s.percent = percent; s.source = epub::PercentSource::Native;
+    s.external = epub::ExternalPower::Battery; s.sequence = sequence; s.sampled = time; return s;
+}
+void settlePower(Harness& h, const epub::PowerSnapshot& s, uint64_t now = 1000) {
+    for (int n = 0; n < 4; ++n) { h.store.flush(); h.app.power(s, now); h.app.consumeTransition(h.input); }
+}
+struct RecordingPoweroff : epub::PoweroffPort {
+    unsigned requests = 0;
+    std::function<void()> verify;
+    epub::PoweroffResult result{epub::PoweroffState::Unsupported, "RECORDING BACKEND / NO SYSTEM COMMAND"};
+    void request(uint64_t) override { ++requests; if (verify) verify(); }
+    epub::PoweroffResult poll(uint64_t) override { return result; }
+};
+void productionShutdownIntegration(const std::string& root, const std::string& assets, const std::string& executable) {
+    using namespace epub;
+    const auto book = assets + "/books/prose-epub3.epub";
+    for (const std::string context : {"library", "library-menu", "chooser", "opening", "reader", "menu", "jump", "font-busy", "jump-busy"}) {
+        RecordingPoweroff backend;
+        const bool library = context == "library" || context == "library-menu" || context == "chooser";
+        Harness h(root + '/' + context, assets, executable, library ? "" : book, nullptr, &backend);
+        if (context != "opening") h.wait();
+        if (context == "library-menu" || context == "chooser" || context == "menu" || context == "font-busy") h.tap(SDLK_x);
+        if (context == "chooser") { h.tap(SDLK_DOWN); h.tap(SDLK_a); }
+        if (context == "font-busy") { h.tap(SDLK_DOWN); h.tap(SDLK_RIGHT); }
+        if (context == "jump" || context == "jump-busy") target(h, 50);
+        if (context == "jump-busy") h.tap(SDLK_a);
+        h.tap(SDLK_LSHIFT);
+        check(!h.app.lowPowerModal && !backend.requests && h.app.exitReason() == ExitReason::None, "Retired Y shortcut remained active in " + context);
+    }
+    std::string anchor, identity;
+    const auto state = root + "/saved"; configure(state, assets + "/books");
+    {
+        RecordingPoweroff backend;
+        Harness h(state, assets, executable, book, nullptr, &backend); h.wait(); h.tap(SDLK_RIGHT); h.wait();
+        anchor = h.app.page.anchor; identity = h.app.page.identity;
+        std::atomic<bool> started{false}, release{false};
+        h.store.saveCatalog([&] { started = true; while (!release) std::this_thread::sleep_for(std::chrono::milliseconds(1)); return "{\"schema\":1}"; });
+        while (!started) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        h.tap(SDLK_x); h.tap(SDLK_a); // Back queues a book write; do not wait for it.
+        h.store.config.preferences.rawLeft = 18; h.store.config.preferences.rawRight = 17;
+        h.store.config.musicRepeat = RepeatMode::One;
+        h.music.state.playback = Playback::Playing;
+        backend.verify = [&] {
+            check(readBook(state, identity).anchor == anchor, "Critical shutdown passed a pending Back bookmark");
+            check(readDocument(state + "/session.json").find("\"mode\": \"list\"") != std::string::npos, "Critical shutdown preceded list persistence");
+            check(readDocument(state + "/config.json").find("\"rawLeft\": 18") != std::string::npos, "Critical shutdown lost latest mixer/config");
+            check(h.music.state.playback == Playback::Stopped && !h.worker.busy(), "Critical shutdown left work/music active");
+        };
+        h.key(SDLK_a, true); h.app.power(battery(1, 1), 1000); h.app.power(battery(1, 2), 1000);
+        h.app.consumeTransition(h.input); h.key(SDLK_a, false);
+        const bool prepared = h.app.exitReason() == ExitReason::LowBatteryPoweroff && !backend.requests && h.app.lowPowerModal;
+        h.app.action(Action::Quit); const bool quitWaited = !h.app.quit() && h.app.exitReason() == ExitReason::LowBatteryPoweroff;
+        release = true; settlePower(h, battery(1, 2));
+        check(prepared && quitWaited && backend.requests == 1 && h.app.quit(), "Critical preparation, held input or quit priority failed");
+        h.tap(SDLK_b); h.tap(SDLK_LSHIFT); settlePower(h, battery(1, 3));
+        check(backend.requests == 1, "Critical shutdown repeated within its episode");
+    }
+    {
+        Store s(state, root + "/new-home");
+        check(!s.session.reader && s.session.selectedIdentity == identity && s.book(identity).anchor == anchor
+              && s.config.preferences.rawLeft == 18 && s.config.musicRepeat == RepeatMode::One, "Critical shutdown reboot state lost book/selection/config");
+    }
+    for (const auto outcome : {PoweroffState::Submitted, PoweroffState::Failed, PoweroffState::TimedOut}) {
+        RecordingPoweroff backend; backend.result = {outcome, poweroffStateName(outcome)};
+        Harness h(root + '/' + poweroffStateName(outcome), assets, executable, {}, nullptr, &backend);
+        h.app.power(battery(2, 1), 1000); h.app.power(battery(2, 2), 1000); settlePower(h, battery(2, 2));
+        check(backend.requests == 1 && h.app.lowPowerDetail == poweroffStateName(outcome), "Critical shutdown command result not observable");
+        h.tap(SDLK_b); h.tap(SDLK_y); h.app.power(battery(1, 3), 1000); check(backend.requests == 1, "Critical shutdown outcome repeated command");
+    }
+    std::cout << "PASS: production Y is inert, critical save-before-command, pending Back anchor, one-shot effects and reboot state\n";
+}
+void powerIntegration(const std::string& root, const std::string& assets, const std::string& executable, const std::string& shots) {
+    using namespace epub;
+    const auto book = assets + "/books/prose-epub3.epub";
+    const auto state = root + "/low"; std::string anchor, identity;
+    configure(state, assets + "/books");
+    {
+        Harness h(state, assets, executable, book); h.wait(); h.tap(SDLK_RIGHT); h.wait();
+        anchor = h.app.page.anchor; identity = h.app.page.identity;
+        h.music.state.playback = Playback::Playing;
+        // Repeat changes while the engine is busy do not recreate music or pagination.
+        h.tap(SDLK_x); h.tap(SDLK_DOWN); h.tap(SDLK_RIGHT); check(h.worker.busy(), "Power/repeat busy setup");
+        h.tap(SDLK_DOWN); const auto begins = h.music.begins; h.tap(SDLK_RIGHT);
+        check(h.store.config.musicRepeat == RepeatMode::One && h.music.state.repeat == RepeatMode::One && h.music.begins == begins, "Busy repeat adjustment/persistence dispatch"); h.wait(); h.tap(SDLK_b);
+        // Exact native frame bounds through every overlay and theme.
+        h.app.power(battery(14, 1), 1000); Canvas c;
+        for (size_t theme = 0; theme < palettes.size(); ++theme) for (int overlay = 0; overlay < 3; ++overlay) {
+            h.store.config.preferences.theme = static_cast<int>(theme); h.app.readerControls.closeOverlay();
+            if (overlay == 1) { h.app.readerControls.showMenu(); h.dispatch(Action::Down); h.dispatch(Action::Down); }
+            if (overlay == 2) h.dispatch(Action::Select);
+            renderApplication(c, h.app);
+            for (int y = 0; y < 478; ++y) for (int x = 0; x < 320; ++x) {
+                if (x < 2 || x >= 318 || y < 2 || y >= 476) check(c.pixels[static_cast<size_t>(y * 320 + x)] == 0xe03030, "Low warning frame native bounds");
+            }
+            for (int y : {478, 479}) for (int x = 0; x < 320; ++x) check(c.pixels[static_cast<size_t>(y * 320 + x)] == (x < 320 * h.app.page.progress / 10000 ? palettes[theme].muted : palettes[theme].background), "Warning covered native progress rows");
+            c.saveBmp(shots + "/power-" + palettes[theme].name + '-' + std::to_string(overlay) + ".bmp");
+        }
+        h.store.config.preferences.theme = 0; h.app.readerControls.closeOverlay(); target(h, 100);
+        h.key(SDLK_a, true); h.app.power(battery(5, 2), 1000); h.app.power(battery(4, 3), 1000); h.app.consumeTransition(h.input);
+        check(h.app.screen() == Screen::Library && h.app.lowPowerModal && h.music.state.playback == Playback::Stopped, "Low interruption did not stop/return to list");
+        h.key(SDLK_a, false); check(h.app.lowPowerModal, "Held A dismissed low notification");
+        settlePower(h, battery(4, 3));
+        check(h.app.lowPowerSave == "POSITION SAVED" && readBook(state, identity).anchor == anchor, "Low transition saved preview/font result instead of last completed anchor");
+        for (size_t theme = 0; theme < palettes.size(); ++theme) {
+            h.store.config.preferences.theme = static_cast<int>(theme); renderApplication(c, h.app); c.saveBmp(shots + "/power-modal-" + palettes[theme].name + ".bmp");
+        }
+        h.tap(SDLK_a); check(!h.app.lowPowerModal && h.app.screen() == Screen::Library, "Dismissal also opened book");
+        h.wait(); h.open(book); h.app.power(battery(3, 4), 1000); h.app.power(battery(3, 5), 1000);
+        check(h.app.screen() == Screen::Reader, "Explicit low episode override reclosed book");
+        h.app.power(battery(2, 6), 1000); h.app.power(battery(1, 7), 1000); settlePower(h, battery(1, 7));
+        check(h.app.screen() == Screen::Library && h.app.exitReason() == ExitReason::LowBatteryPoweroff && !h.app.lowPowerDetail.empty(), "Two-percent list fallback absent");
+    }
+    {
+        Store s(state, root); check(!s.session.reader && s.book(identity).anchor == anchor && s.config.musicRepeat == RepeatMode::One, "Reboot state/repeat did not retain low transition");
+    }
+    for (const std::string context : {"library", "library-menu", "chooser", "opening", "reader", "menu", "jump", "font-busy", "jump-busy"}) {
+        RecordingPoweroff backend;
+        const bool library = context == "library" || context == "library-menu" || context == "chooser";
+        const auto path = root + '/' + context;
+        Harness h(path, assets, executable, library ? "" : book, nullptr, &backend);
+        if (context != "opening") h.wait();
+        if (context == "library-menu" || context == "chooser" || context == "menu" || context == "font-busy") h.tap(SDLK_x);
+        if (context == "chooser") { h.tap(SDLK_DOWN); h.tap(SDLK_a); }
+        if (context == "font-busy") { h.tap(SDLK_DOWN); h.tap(SDLK_RIGHT); }
+        if (context == "jump" || context == "jump-busy") target(h, 50);
+        if (context == "jump-busy") h.tap(SDLK_a);
+        const auto savedAnchor = h.app.page.anchor, savedId = h.app.page.identity;
+        backend.verify = [&] {
+            check(readDocument(path + "/session.json").find("\"mode\": \"list\"") != std::string::npos, "Shutdown requested before list acknowledgement in " + context);
+            if (!savedAnchor.empty()) check(readBook(path, savedId).anchor == savedAnchor, "Shutdown lost completed anchor in " + context);
+            check(h.music.state.playback == Playback::Stopped, "Shutdown before music stopped");
+        };
+        h.app.power(battery(1, 1), 1000); h.app.power(battery(1, 2), 1000); settlePower(h, battery(1, 2));
+        for (uint32_t n = 3; n < 10; ++n) h.app.power(battery(0, n), 1000);
+        check(backend.requests == 1 && h.app.lowPowerSave == "POSITION SAVED", "Poweroff loop/save failure in " + context);
+        h.key(SDLK_RETURN, true); h.key(SDLK_ESCAPE, true); check(h.app.quit() && h.app.exitReason() == ExitReason::LowBatteryPoweroff, "Global quit downgraded poweroff reason/fallback exit broken");
+    }
+    for (const std::string condition : {"deadline", "charger", "unknown", "cleared", "stale"}) {
+        const auto path = root + '/' + condition; RecordingPoweroff backend;
+        Harness h(path, assets, executable, book, nullptr, &backend); h.wait();
+        const auto savedAnchor = h.app.page.anchor, savedId = h.app.page.identity;
+        std::atomic<bool> started{false}, release{false};
+        h.store.saveCatalog([&] { started = true; while (!release) std::this_thread::sleep_for(std::chrono::milliseconds(1)); return "{\"schema\":1}"; });
+        while (!started) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        h.app.power(battery(5, 1), 1000); h.app.power(battery(5, 2), 1000);
+        h.app.power(battery(2, 3), 1000); h.app.power(battery(1, 4), 1000);
+        h.app.action(Action::Quit); const bool keptReason = !h.app.quit() && h.app.exitReason() == ExitReason::LowBatteryPoweroff;
+        auto s = battery(1, 5, 6000);
+        if (condition == "charger") s.external = ExternalPower::Connected;
+        if (condition == "unknown") s.percent.reset();
+        if (condition == "cleared") s.percent = 3;
+        if (condition == "stale") s.sampled = 0;
+        const uint64_t time = condition == "stale" ? 7000 : 6000;
+        const auto since = std::chrono::steady_clock::now(); h.app.power(s, time);
+        const bool bounded = std::chrono::steady_clock::now() - since < std::chrono::milliseconds(100);
+        const bool outcome = condition != "deadline" ? !backend.requests : backend.requests == 1 && h.app.lowPowerSave == "SAVE INCOMPLETE";
+        release = true; settlePower(h, s, time);
+        check(keptReason && bounded && outcome, "Promotion/deadline/charger cancellation contract");
+        check(readBook(path, savedId).anchor == savedAnchor && !h.store.session.reader, "Promotion lost captured checkpoint");
+    }
+    {
+        const auto path = root + "/failed"; Harness h(path, assets, executable, book); h.wait();
+        const auto savedId = h.app.page.identity, savedAnchor = h.app.page.anchor;
+        ensureDirectory(path + "/books/" + savedId + ".json.tmp");
+        h.app.power(battery(5, 1), 1000); h.app.power(battery(5, 2), 1000); settlePower(h, battery(5, 2));
+        check(h.app.lowPowerSave == "SAVE FAILED", "Failed-but-drained transition claimed save success");
+        std::filesystem::remove_all(path + "/books/" + savedId + ".json.tmp"); h.tap(SDLK_x); settlePower(h, battery(5, 2));
+        check(h.app.lowPowerSave == "POSITION SAVED" && readBook(path, savedId).anchor == savedAnchor, "Explicit failed-save retry lost captured data");
+    }
+    {
+        const auto path = root + "/failed-critical"; RecordingPoweroff backend;
+        Harness h(path, assets, executable, book, nullptr, &backend); h.wait();
+        ensureDirectory(path + "/config.json.tmp");
+        h.app.power(battery(2, 1), 1000); h.app.power(battery(2, 2), 1000); settlePower(h, battery(2, 2));
+        check(backend.requests == 1 && h.app.lowPowerSave != "POSITION SAVED", "Critical failure did not make a bounded best-effort request");
+        check(h.app.lowPowerDetail.find("RECORDING BACKEND") != std::string::npos && !h.app.lowPowerError.empty(), "Save failure hid shutdown capability explanation");
+        std::filesystem::remove_all(path + "/config.json.tmp"); h.tap(SDLK_x); settlePower(h, battery(2, 2));
+        check(h.app.lowPowerSave == "POSITION SAVED" && backend.requests == 1, "Failed critical explicit retry resubmitted shutdown");
+    }
+    {
+        const auto path = root + "/late-failure"; RecordingPoweroff backend;
+        Harness h(path, assets, executable, book, nullptr, &backend); h.wait();
+        std::atomic<bool> started{false}, release{false};
+        h.store.saveCatalog([&] { started = true; while (!release) std::this_thread::sleep_for(std::chrono::milliseconds(1)); return "{\"schema\":1}"; });
+        while (!started) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        ensureDirectory(path + "/config.json.tmp");
+        h.app.power(battery(2, 1), 1000); h.app.power(battery(2, 2), 1000);
+        const auto s = battery(2, 3, 6000); h.app.power(s, 6000); release = true;
+        h.store.flush(); h.app.power(s, 6000);
+        const bool noLateRetry = h.store.idle() && h.app.lowPowerSave == "SAVE FAILED" && backend.requests == 1;
+        std::filesystem::remove_all(path + "/config.json.tmp");
+        check(noLateRetry, "Automatic retry escaped the five-second budget");
+    }
+    std::cout << "PASS: production power transitions across screens/work, durable acknowledgements, promotion/deadline/charger, retry, input and native frames\n";
 }
 void checkBar(const epub::Canvas& canvas, const epub::ReaderResult& page, int theme) {
     const auto& palette = epub::palettes[static_cast<size_t>(theme)];
@@ -304,6 +502,8 @@ int main(int argc, char** argv) {
         for (int n = 0; n < 22; ++n) copy(fixtures + "/one-page.epub", folder + "/copy " + std::to_string(n) + ".epub");
         configure(state, folder);
         musicIntegration(root + "/music-state", folder, assets, executable, shots);
+        powerIntegration(root + "/power-state", assets, executable, shots);
+        productionShutdownIntegration(root + "/production-shutdown", assets, executable);
         liveMusic(root + "/live-music-state", fixtures, assets, executable);
         std::string anchor, id2, id3; int pageNumber = 0;
         epub::Canvas canvas;

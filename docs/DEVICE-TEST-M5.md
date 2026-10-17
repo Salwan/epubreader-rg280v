@@ -59,37 +59,37 @@ restoration; physical keys never invoke a second app adjustment.
 
 ## Acceptance checklist
 
-- [ ] Launches/exits on Adam v2.1; existing theme/font, list selection, reader
+- [x] Launches/exits on Adam v2.1; existing theme/font, list selection, reader
       session, independent anchors, completion, and jump behavior remain correct.
-- [ ] Popup count matches your nonrecursive MP3 folder, including mixed-case names
+- [x] Popup count matches your nonrecursive MP3 folder, including mixed-case names
       and spaces. No bundled diagnostic tone appears as an extra track.
-- [ ] Empty/missing folders produce a clear popup status and leave reading usable.
+- [x] Empty/missing folders produce a clear popup status and leave reading usable.
       Adding files or changing Music folder takes effect only after restart.
-- [ ] A brief press starts, pauses at the current position, and resumes it.
+- [x] A brief press starts, pauses at the current position, and resumes it.
       Opening/resuming another book never starts music automatically.
-- [ ] A hold skips once with no pause/toggle on release. Holding while stopped is
+- [x] A hold skips once with no pause/toggle on release. Holding while stopped is
       inert. Paused skip stays completely silent and resumes the new track from
       its beginning.
-- [ ] Several short/normal tracks continue automatically in shuffle cycles; no
+- [x] Several short/normal tracks continue automatically in shuffle cycles; no
       immediate cycle-boundary repeat occurs with alternatives. One track repeats.
-- [ ] Mono and different-rate MP3s play correctly. Corrupt/removed tracks are
+- [x] Mono and different-rate MP3s play correctly. Corrupt/removed tracks are
       skipped, and an all-invalid folder settles at stopped with an explanation.
-- [ ] Popup and slider A perform only their interface actions. Held A while
+- [x] Popup and slider A perform only their interface actions. Held A while
       opening/closing overlays or loading a book causes no unintended playback.
       Track state/count and failure text are readable in all six themes.
-- [ ] Music continues smoothly during page turns, theme/font changes, slider
+- [x] Music continues smoothly during page turns, theme/font changes, slider
       preview/commit, and state saves. Fresh A can pause during reader work.
-- [ ] Back stops music immediately; returning to the list never restarts it.
+- [x] Back stops music immediately; returning to the list never restarts it.
       List movement chirps briefly only when selection changes, including repeat
       and page movement; boundaries/menu navigation remain silent.
-- [ ] Physical Volume+/− changes `PCM,0` once per press. `MIXER START` and
+- [x] Physical Volume+/− changes `PCM,0` once per press. `MIXER START` and
       `MIXER EXIT` setter counts match despite physical presses. Test speaker and
       headphone output and saved raw levels after relaunch and reboot.
-- [ ] Both Select+Start orders exit promptly while playing/paused, scanning,
+- [x] Both Select+Start orders exit promptly while playing/paused, scanning,
       opening, and paginating. Final volume and last completed anchor survive.
-- [ ] Suspend/resume retains Playing/Paused intent without stuck keys, extra
+- [x] Suspend/resume retains Playing/Paused intent without stuck keys, extra
       skips, or starting a stopped session. Reader controls and audio recover.
-- [ ] Read/listen for 15–30 minutes. Report audible dropouts, increasing memory,
+- [x] Read/listen for 15–30 minutes. Report audible dropouts, increasing memory,
       slow page response, unexpected skips, and underruns from the final log.
 
 ## Logs and feedback

@@ -1,5 +1,6 @@
 #include "storage/store.hpp"
 #include "storage/position.hpp"
+#include "platform/paths.hpp"
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -111,6 +112,66 @@ int main(int argc, char** argv) {
             check(p.mixer == "PCM,0" && p.maximum == 31 && p.rawLeft == 20 && p.rawRight == 17 && p.volume == 64,
                 "Newest raw volume snapshot was not durable");
             check(p.theme == 4 && p.font == 2 && s.config.music == root + "/Music with spaces", "Volume save lost unrelated preferences");
+        }
+        {
+            const auto path = root + "/critical";
+            epub::Store s(path, root); epub::BookState b; b.identity = id; b.anchor = "/completed-page"; b.path = root + "/book.epub";
+            s.session.reader = false; s.session.selectedPath = b.path; s.config.musicRepeat = epub::RepeatMode::One;
+            epub::ensureDirectory(path + "/books/" + id + ".json.tmp");
+            const auto ticket = s.criticalCheckpoint(b); s.flush();
+            check(s.idle() && s.criticalResult(ticket).state == epub::CheckpointState::Failed, "Drained failed queue claimed critical success");
+            check(s.criticalResult(ticket).error.find("book:") == 0 && epub::readDocument(path + "/session.json").empty(), "Critical session advanced past failed book");
+            std::filesystem::remove_all(path + "/books/" + id + ".json.tmp");
+            check(s.retryCritical(ticket), "Failed critical data not retryable"); s.flush();
+            check(s.criticalResult(ticket).state == epub::CheckpointState::Succeeded && s.criticalResult(ticket).attempts == 2 && !s.retryCritical(ticket), "Bounded critical retry/acknowledgement");
+            check(epub::readBook(path, id).anchor == b.anchor, "Critical retry lost captured anchor");
+            std::atomic<bool> started{false}, release{false}, priority{false};
+            s.saveCatalog([&] { started = true; while (!release) std::this_thread::sleep_for(std::chrono::milliseconds(1)); return "{\"schema\":1}"; });
+            while (!started) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            b.anchor = "/new-completed-page";
+            s.saveCatalog([&] { priority = epub::readBook(path, id).anchor == b.anchor; return "{\"schema\":1}"; });
+            const auto next = s.criticalCheckpoint(b);
+            check(s.criticalResult(next).state == epub::CheckpointState::Pending, "Active storage work falsely acknowledged");
+            release = true; s.flush(); check(priority && s.criticalResult(next).state == epub::CheckpointState::Succeeded, "Critical work did not precede rebuildable catalog");
+            epub::ensureDirectory(path + "/config.json.tmp"); const auto failedConfig = s.criticalCheckpoint(b); s.flush();
+            check(s.criticalResult(failedConfig).state == epub::CheckpointState::Failed && s.criticalResult(failedConfig).error.find("config:") == 0, "Config-specific failure lost");
+            std::filesystem::remove_all(path + "/config.json.tmp"); check(s.retryCritical(failedConfig), "Config retry rejected"); s.flush();
+        }
+        {
+            epub::Store s(root + "/critical", root);
+            check(s.config.musicRepeat == epub::RepeatMode::One && !s.session.reader && s.book(id).anchor == "/new-completed-page", "Fresh-store critical/repeat roundtrip");
+            s.config.musicRepeat = epub::RepeatMode::Stop; s.saveConfig(); s.flush();
+        }
+        {
+            epub::Store s(root + "/critical", root); check(s.config.musicRepeat == epub::RepeatMode::Stop, "STOP repeat roundtrip");
+        }
+        epub::atomicWrite(root + "/repeat-invalid", "config.json", "{\"schema\":1,\"books\":\"/books\",\"music\":\"/music\",\"theme\":\"warm2\",\"font\":\"large\",\"musicRepeat\":42}");
+        {
+            epub::Store s(root + "/repeat-invalid", root);
+            check(s.config.musicRepeat == epub::RepeatMode::All && s.config.preferences.theme == 5 && s.config.preferences.font == 2 && !s.error().empty(), "Invalid repeat discarded valid settings or omitted notice");
+        }
+        const auto device = epub::defaultAppPaths(root + "/firmware-home", true);
+        const auto host = epub::defaultAppPaths(root + "/preview-home", false);
+        check(device.state == "/media/sdcard/epubreader" && device.contentRoot == "/media/sdcard", "Adam defaults do not use the user SD card");
+        check(host.state == root + "/preview-home/.epubreader" && host.contentRoot == root + "/preview-home", "Host defaults escaped the preview home");
+        // Exercise the device layout entirely under the build-local test root.
+        const auto card = root + "/sdcard", state = card + "/epubreader";
+        {
+            epub::Store s(state, card);
+            check(s.config.books == card + "/books" && s.config.music == card + "/music", "Fresh SD-card content defaults");
+            s.config.preferences.theme = 4; s.config.musicRepeat = epub::RepeatMode::Stop;
+            s.config.books = card + "/My Books"; s.config.music = card + "/My Music";
+            epub::BookState b; b.identity = id; b.path = s.config.books + "/book.epub"; b.anchor = "/sdcard-page"; b.finished = true;
+            s.session.selectedPath = b.path; s.session.selectedIdentity = id;
+            const auto ticket = s.criticalCheckpoint(b); s.flush();
+            check(s.criticalResult(ticket).state == epub::CheckpointState::Succeeded, "SD-card critical checkpoint failed");
+            s.saveCatalog([] { return "{\"schema\":1}"; }); s.flush();
+        }
+        {
+            epub::Store s(state, root + "/replacement-firmware-home");
+            check(s.root() == state && s.config.books == card + "/My Books" && s.config.music == card + "/My Music", "Saved SD-card folder choices lost after HOME changes");
+            check(s.config.preferences.theme == 4 && s.config.musicRepeat == epub::RepeatMode::Stop && s.book(id).anchor == "/sdcard-page" && s.book(id).finished && s.session.selectedIdentity == id, "SD-card settings/bookmarks/session did not survive firmware HOME replacement");
+            check(std::filesystem::exists(state + "/cache/library.json") && !std::filesystem::exists(root + "/replacement-firmware-home"), "SD-card cache/state escaped to firmware HOME");
         }
         std::cout << "PASS: versioned production state, migration, save ordering, interrupted writes, schema recovery\n";
         return 0;

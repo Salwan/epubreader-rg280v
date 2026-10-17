@@ -13,8 +13,8 @@ void Catalog::begin(const std::string& folder, const Session& s) {
 }
 void Catalog::sortAndRestore() {
     std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
-        return std::make_tuple(a.finished, foldAscii(a.title), baseName(a.path), a.path)
-            < std::make_tuple(b.finished, foldAscii(b.title), baseName(b.path), b.path);
+        return std::make_tuple(progressGroupRank(a.progress), foldAscii(a.title), baseName(a.path), a.path)
+            < std::make_tuple(progressGroupRank(b.progress), foldAscii(b.title), baseName(b.path), b.path);
     });
     auto i = std::find_if(entries.begin(), entries.end(), [&](const auto& e) { return e.path == selectedPath_; });
     if (i == entries.end() && !selectedIdentity_.empty())

@@ -5,6 +5,8 @@
 
 namespace epub {
 constexpr int libraryRows = 17;
+inline int progressGroupRank(int progress) { return progress > 0 && progress < 10000 ? 0 : progress == 10000 ? 2 : 1; }
+inline std::string progressLabel(int progress) { return progress > 0 && progress < 100 ? "<1%" : std::to_string(progress < 0 ? 0 : progress / 100) + '%'; }
 class Catalog {
     std::string folder_, selectedPath_, selectedIdentity_, topPath_;
     int selected_ = 0, top_ = 0;

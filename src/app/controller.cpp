@@ -5,7 +5,8 @@
 #include <iomanip>
 
 namespace epub {
-Controller::Controller(Store& store, ReaderWorker& worker, const std::string& bookOverride, MusicPort* music) : store_(store), worker_(worker), music_(music) {
+Controller::Controller(Store& store, ReaderWorker& worker, const std::string& bookOverride, MusicPort* music, PoweroffPort* poweroff) : store_(store), worker_(worker), music_(music), poweroff_(poweroff) {
+    if (music_) music_->setRepeat(store.config.musicRepeat);
     page.font = store.config.preferences.font; page.theme = store.config.preferences.theme;
     if (!bookOverride.empty()) open(absolutePath(bookOverride));
     else if (store.session.reader) {
@@ -24,6 +25,7 @@ void Controller::cache() {
 }
 void Controller::checkpoint() {
     if (page.anchor.empty() || currentBook_.identity.empty()) return;
+    lastCheckpoint_ = currentBook_;
     store_.checkpoint(currentBook_); positionDirty_ = false;
 }
 void Controller::scan(bool retryErrors) {
@@ -39,6 +41,11 @@ void Controller::scan(bool retryErrors) {
 }
 void Controller::open(const std::string& path, const std::string& expected, bool resume) {
     if (music_) music_->endBook();
+    if (capturedBook_ && criticalTicket_ && store_.criticalResult(criticalTicket_).state == CheckpointState::Failed) {
+        // Retain an older failed interruption in the ordinary retry queue before
+        // a different displayed book can take ownership of the next transition.
+        store_.checkpoint(*capturedBook_); capturedBook_.reset();
+    }
     if (screen_ == Screen::Library) { catalog.remember(store_.session); cache(); }
     checkpoint(); worker_.restart();
     screen_ = Screen::Opening; transition_ = changed_ = true;
@@ -125,6 +132,7 @@ void Controller::receive(ReaderResult r) {
 }
 void Controller::tick(uint32_t now) {
     now_ = now;
+    if (lowPowerModal || preparingPoweroff_ || poweroffPending_) return;
     if (music_ && music_->tick()) changed_ = true;
     for (int n = 0; n < 16; ++n) { auto result = worker_.poll(); if (!result) break; receive(std::move(*result)); }
     if (const auto error = store_.error(); !error.empty()) { notice = error; changed_ = true; std::cerr << error << '\n'; }
@@ -190,6 +198,17 @@ void Controller::action(Action a) {
     if (a == Action::None) return;
     changed_ = true;
     if (a == Action::Quit) { requestQuit(); return; }
+    if (lowPowerModal) {
+        if (!preparingPoweroff_ && !poweroffPending_ && criticalTicket_ && store_.criticalResult(criticalTicket_).state == CheckpointState::Failed && a == Action::X) {
+            const auto previous = criticalTicket_;
+            criticalTicket_ = store_.criticalCheckpoint(capturedBook_); store_.forgetCritical(previous);
+            lowPowerSave = "SAVING"; saveExpired_ = false; transition_ = true;
+        }
+        if (!preparingPoweroff_ && !poweroffPending_ && criticalTicket_ && store_.criticalResult(criticalTicket_).state != CheckpointState::Pending && (a == Action::AShort || a == Action::B)) {
+            lowPowerModal = false; transition_ = true;
+        }
+        return;
+    }
     if (screen_ == Screen::FolderChooser) { folderAction(a); return; }
     if (screen_ == Screen::Library) {
         resumeSearch_ = false; // Explicit library interaction supersedes automatic recovery.
@@ -215,13 +234,17 @@ void Controller::action(Action a) {
         return;
     }
     const auto wasOpen = readerControls.overlay();
-    const auto control = readerControls.handle(a, store_.config.preferences.font, store_.config.preferences.theme, worker_.busy() || openPending_, &page);
+    const auto control = readerControls.handle(a, store_.config.preferences.font, store_.config.preferences.theme, worker_.busy() || openPending_, &page, store_.config.musicRepeat);
     if (wasOpen != readerControls.overlay()) transition_ = true;
     using E = ReaderEffect; using C = ReaderCommand;
     switch (control.effect) {
     case E::Quit: requestQuit(); break;
     case E::MusicToggle: if (music_) music_->toggle(); break;
     case E::MusicSkip: if (music_) music_->skip(); break;
+    case E::Repeat:
+        store_.config.musicRepeat = static_cast<RepeatMode>(control.value);
+        if (music_) music_->setRepeat(store_.config.musicRepeat);
+        store_.saveConfig(); break;
     case E::Back:
         catalog.remember(store_.session); store_.session.reader = false; checkpoint(); scan(false); break;
     case E::Turn: submit({C::Turn, control.value}); break;
@@ -240,13 +263,130 @@ void Controller::action(Action a) {
 void Controller::consumeTransition(Input& input) {
     if (transition()) { input.consumeA(); input.consumeRepeat(); }
 }
-void Controller::requestQuit() { if (music_) music_->endBook(); quit_ = true; }
+void Controller::requestQuit() {
+    if (music_) music_->endBook();
+    quitRequested_ = true;
+    if (exitReason_ != ExitReason::LowBatteryPoweroff) exitReason_ = ExitReason::QuitApplication;
+    // A global quit cannot bypass an already pending poweroff preparation.
+    if (!preparingPoweroff_ && !poweroffPending_) quit_ = true;
+}
+void Controller::lowPower(PowerEffect effect) {
+    const bool critical = effect == PowerEffect::Poweroff;
+    if (critical) {
+        exitReason_ = ExitReason::LowBatteryPoweroff;
+        preparingPoweroff_ = true; criticalSince_ = powerNow_;
+        if (lowPowerModal) {
+            // Promotion retains the captured anchor, but includes the latest mixer/config.
+            const auto previous = criticalTicket_;
+            criticalTicket_ = store_.criticalCheckpoint(capturedBook_);
+            store_.forgetCritical(previous); saveExpired_ = false;
+        }
+    }
+    if (!lowPowerModal) {
+        if (!criticalTicket_ || store_.criticalResult(criticalTicket_).state == CheckpointState::Succeeded) capturedBook_.reset();
+        if (!page.anchor.empty() && !currentBook_.identity.empty()) capturedBook_ = currentBook_;
+        else if (!capturedBook_ && lastCheckpoint_) capturedBook_ = lastCheckpoint_;
+        if (catalog.current()) catalog.remember(store_.session);
+        else if (capturedBook_) {
+            store_.session.selectedPath = capturedBook_->path; store_.session.selectedIdentity = capturedBook_->identity;
+        }
+        if (music_) music_->endBook();
+        worker_.restart(); readerControls = {}; libraryMenu = false;
+        openPending_ = chooserPending_ = chooserMore_ = resumeSearch_ = positionDirty_ = false;
+        screen_ = Screen::Library; page = {}; currentBook_ = {};
+        store_.session.reader = false;
+        catalog.begin(store_.config.books, store_.session);
+        scanPending_ = true; more_ = enumerationDone_ = indexDone_ = false;
+        if (criticalTicket_) store_.forgetCritical(criticalTicket_);
+        criticalTicket_ = store_.criticalCheckpoint(capturedBook_);
+        saveExpired_ = false;
+        lowPowerSave = "SAVING"; lowPowerDetail = "READING INTERRUPTED";
+        lowPowerModal = true;
+    }
+    lowPowerTitle = std::string(critical ? "CRITICAL BATTERY (" : "LOW BATTERY (") + std::to_string(power_.percent.value_or(0)) + "%)";
+    transition_ = changed_ = true;
+    std::cout << "POWER TRANSITION " << lowPowerTitle << " ticket=" << criticalTicket_ << '\n';
+    std::cout << "POWER CHECKPOINT ticket=" << criticalTicket_ << " book=" << (capturedBook_ ? capturedBook_->identity : "none")
+        << " anchor=" << std::quoted(capturedBook_ ? capturedBook_->anchor : "")
+        << " selected=" << std::quoted(store_.session.selectedPath) << " mode=list"
+        << " theme=" << store_.config.preferences.theme << " font=" << store_.config.preferences.font
+        << " repeat=" << repeatName(store_.config.musicRepeat) << " volume=" << store_.config.preferences.volume
+        << " raw=" << store_.config.preferences.rawLeft << ',' << store_.config.preferences.rawRight << '\n';
+}
+void Controller::power(const PowerSnapshot& snapshot, uint64_t now) {
+    const auto oldLabel = batteryLabel(); const bool oldWarning = batteryWarning();
+    power_ = snapshot; powerNow_ = now;
+    const auto effect = powerPolicy_.observe(power_, now, screen_ == Screen::Reader || screen_ == Screen::Opening);
+    if (oldLabel != batteryLabel() || oldWarning != batteryWarning()) changed_ = true;
+    if (effect != PowerEffect::None) lowPower(effect);
+    if (preparingPoweroff_ && (!power_.onBattery(now) || *power_.percent > 2)) {
+        preparingPoweroff_ = false; powerPolicy_.cancelPoweroff(); lowPowerDetail = "POWEROFF CANCELLED: POWER CHANGED"; changed_ = true;
+    }
+    if (criticalTicket_ && lowPowerModal) {
+        auto result = store_.criticalResult(criticalTicket_);
+        auto logSave = [&](const CheckpointResult& r) {
+            if (loggedTicket_ == criticalTicket_ && loggedSaveState_ == r.state && loggedSaveAttempts_ == r.attempts) return;
+            loggedTicket_ = criticalTicket_; loggedSaveState_ = r.state; loggedSaveAttempts_ = r.attempts;
+            const char* state = r.state == CheckpointState::Pending ? "pending" : r.state == CheckpointState::Succeeded ? "succeeded" : "failed";
+            std::cout << "POWER SAVE ticket=" << criticalTicket_ << " state=" << state << " attempt=" << r.attempts
+                << " boot-ms=" << now << " error=" << std::quoted(r.error) << '\n';
+        };
+        logSave(result);
+        if (result.state == CheckpointState::Failed && result.attempts < 2 && !saveExpired_ && (!preparingPoweroff_ || now - criticalSince_ < 5000)) {
+            if (store_.retryCritical(criticalTicket_)) result = store_.criticalResult(criticalTicket_);
+            logSave(result);
+        }
+        const auto text = result.state == CheckpointState::Pending ? (saveExpired_ ? "SAVE INCOMPLETE" : "SAVING") : result.state == CheckpointState::Succeeded ? "POSITION SAVED" : "SAVE FAILED";
+        if (lowPowerSave != text) {
+            lowPowerSave = text; changed_ = true;
+            if (result.state == CheckpointState::Failed) std::cerr << "POWER SAVE FAILED: " << result.error << '\n';
+        }
+        const auto saveError = result.state == CheckpointState::Failed ? result.error : std::string{};
+        if (lowPowerError != saveError) { lowPowerError = saveError; changed_ = true; }
+        if (preparingPoweroff_ && (result.state != CheckpointState::Pending || now - criticalSince_ >= 5000)) {
+            preparingPoweroff_ = false;
+            if (result.state != CheckpointState::Succeeded) {
+                lowPowerSave = "SAVE INCOMPLETE"; saveExpired_ = true;
+                std::cerr << "POWER SAVE INCOMPLETE ticket=" << criticalTicket_ << " elapsed-ms=" << now - criticalSince_ << ": " << result.error << '\n';
+            }
+            // Use the latest sample, not the threshold-triggering snapshot.
+            if (!power_.onBattery(now) || *power_.percent > 2) lowPowerDetail = "POWEROFF CANCELLED: POWER CHANGED";
+            else {
+                std::cout << "POWER REQUEST reason=low-battery save=" << lowPowerSave << '\n';
+                powerPolicy_.poweroffAttempted();
+                if (poweroff_) { poweroffPending_ = true; poweroff_->request(now); }
+                else lowPowerDetail = "SHUTDOWN UNAVAILABLE / LIST FALLBACK";
+            }
+            changed_ = true;
+        }
+    }
+    if (poweroffPending_) {
+        const auto result = poweroff_->poll(now);
+        if (result.state != PoweroffState::Pending && result.state != PoweroffState::Idle) {
+            poweroffPending_ = false; lowPowerDetail = result.detail;
+            std::cout << "POWER RESULT " << poweroffStateName(result.state) << ' ' << result.detail << '\n'; changed_ = true;
+        }
+    }
+    if (quitRequested_ && !preparingPoweroff_ && !poweroffPending_) quit_ = true;
+}
 void Controller::shutdown() {
     if (music_) music_->endBook();
-    if (screen_ == Screen::Library || screen_ == Screen::FolderChooser) { catalog.remember(store_.session); store_.session.reader = false; }
-    checkpoint();
-    if (page.anchor.empty()) store_.saveSession();
-    store_.saveConfig(); worker_.stop(); store_.retryFailed(); store_.flush();
+    if (!lowPowerModal && capturedBook_ && criticalTicket_ && store_.criticalResult(criticalTicket_).state == CheckpointState::Failed)
+        store_.checkpoint(*capturedBook_);
+    if (screen_ == Screen::Library || screen_ == Screen::FolderChooser) {
+        if (catalog.current()) catalog.remember(store_.session);
+        store_.session.reader = false;
+    }
+    if (lowPowerModal && criticalTicket_) {
+        // An explicit save/exit also retries retained failure data and captures
+        // the final mixer observation, still book -> list -> config.
+        store_.criticalCheckpoint(capturedBook_);
+    } else {
+        checkpoint();
+        if (page.anchor.empty()) store_.saveSession();
+        store_.saveConfig();
+    }
+    worker_.stop(); store_.retryFailed(); store_.flush();
     for (;;) { const auto error = store_.error(); if (error.empty()) break; std::cerr << error << '\n'; }
 }
 }

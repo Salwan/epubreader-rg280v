@@ -59,32 +59,32 @@ the last completed displayed position. An uncommitted preview is never resumed.
 
 ## Acceptance checklist
 
-- [ ] Launches on Adam v2.1 and exits cleanly to the frontend. Existing M3 theme,
+- [x] Launches on Adam v2.1 and exits cleanly to the frontend. Existing M3 theme,
       font, list selection, reading session, and independent book anchors survive.
-- [ ] Select opens at the displayed location; Left/Right changes −/+1%, Up/Down
+- [x] Select opens at the displayed location; Left/Right changes −/+1%, Up/Down
       +/−10%, with correct repeat and 0/100 clamping. Preview is responsive.
-- [ ] The shown page number matches the committed page. Try 0%, 50%, and 100%,
+- [x] The shown page number matches the committed page. Try 0%, 50%, and 100%,
       a short book, and a one-page book. A is activated only on brief release.
-- [ ] B and Select retain the exact original page/anchor. Returning the target to
+- [x] B and Select retain the exact original page/anchor. Returning the target to
       its opening value and confirming causes no drift. X opens Back-selected popup.
-- [ ] Previewing 100% and canceling leaves completion unchanged. A committed
+- [x] Previewing 100% and canceling leaves completion unchanged. A committed
       final-page jump completes a multi-page book; backward turns keep completion.
       One-page slider changes do not finish the book; forward turn does.
-- [ ] Jump, immediately exit/relaunch, and repeat after reboot: the returned text
+- [x] Jump, immediately exit/relaunch, and repeat after reboot: the returned text
       anchor resumes. Exit while previewing: the original location resumes.
-- [ ] Font-size changes after a jump preserve the new anchor and selected row;
+- [x] Font-size changes after a jump preserve the new anchor and selected row;
       returning to the original font restores its page. Several books stay independent.
-- [ ] List, library menu, chooser, popup/header, and slider are readable in all six
+- [x] List, library menu, chooser, popup/header, and slider are readable in all six
       themes. Warm2/amber retain their accepted appearance. Long titles/filenames
       fit, and status notices do not overlap slider controls.
-- [ ] Normal reading shows only content plus the low-contrast bar at native rows
+- [x] Normal reading shows only content plus the low-contrast bar at native rows
       478–479. Preview leaves this bar unchanged. List scrollbar is two columns wide.
-- [ ] Holding A across overlay transitions causes no confirmation; long A does
+- [x] Holding A across overlay transitions causes no confirmation; long A does
       not jump or trigger another action on release. Held directions do not leak
       from slider → popup → reader or list → reader.
-- [ ] Both Select+Start press orders exit from list, chooser, reader, popup, slider,
+- [x] Both Select+Start press orders exit from list, chooser, reader, popup, slider,
       and during opening/font/jump work, preserving the last completed location.
-- [ ] Back to list during a pending jump is responsive and preserves the prior
+- [x] Back to list during a pending jump is responsive and preserves the prior
       completed page; reopening succeeds. Suspend/resume leaves no stuck input
       or accidental jump and preserves an open slider's target.
 

@@ -47,8 +47,13 @@ bool Music::tick() {
         if (event->reason == AudioEnd::Failed) {
             playlist_.fail(snapshot_.track - 1); snapshot_.detail = event->message;
             std::cerr << "MUSIC ERROR track=" << snapshot_.track << " " << event->message << '\n';
-        }
-        advance_ = true; dirty_ = true;
+            advance_ = true;
+        } else if (snapshot_.repeat == RepeatMode::Stop) {
+            audio_.stop(); playlist_.reset(); snapshot_.playback = Playback::Stopped; snapshot_.track = 0; advance_ = false;
+        } else if (snapshot_.repeat == RepeatMode::One && snapshot_.track) {
+            generation_ = audio_.start(tracks_[snapshot_.track - 1], snapshot_.playback);
+        } else advance_ = true;
+        dirty_ = true;
     }
     if (active_ && advance_) {
         advance_ = false;

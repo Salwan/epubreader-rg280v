@@ -10,7 +10,8 @@ Build a single OpenDingux `.opk` application for reading English-prose EPUBs and
 | Firmware | Adam v2.1; reported kernel `5.15.0-rc6-opendingux` |
 | Display | Native 320×480 framebuffer; aspect-correct logical geometry of 320×240 |
 | Books | English-prose, reflowable EPUBs |
-| Default content folders | `$HOME/books` and `$HOME/music`, configurable in settings |
+| Default content folders | Device: `/media/sdcard/books` and `/media/sdcard/music`, configurable in settings; host: `$HOME/books` and `$HOME/music` |
+| Production state | Device: `/media/sdcard/epubreader`; host: `$HOME/.epubreader` |
 | Themes | Dark, warm, amber, matrix, light, and warm2; dark initially |
 | Reader font | TrueType, UTF-8; small, medium, and large; medium initially |
 | Library text | Small, sharp 5×14-native-pixel bitmap text, selected on-device |
@@ -21,9 +22,11 @@ Build a single OpenDingux `.opk` application for reading English-prose EPUBs and
 
 `README.md` is the feature baseline. The page-turn controls and jump slider from `BRAINSTORM.md` are included per user confirmation. The user will perform on-device verification once testable OPK artifacts are available.
 
-M5 `0.5.0` is device-accepted. The next implementation target is **Milestone 5.5**:
-the battery/low-power, music-repeat, and list-grouping requests in `BRAINSTORM.md`,
-scheduled before M6 hardening. See [the M5.5 plan](docs/PLAN-M5.5.md).
+M5 `0.5.0` is device-accepted. **Milestone 5.5 production `0.5.7` includes confirmed
+normal shutdown**: battery/low-power, music-repeat, and list-grouping requests in
+`BRAINSTORM.md`, plus SD-card integration, before M6 hardening. The user confirmed
+shutdown from the actual OPK; version 0.5.7 enables that mechanism for critical
+battery handling and removes the temporary experiment. See [the M5.5 plan](docs/PLAN-M5.5.md).
 
 ## 2. Research findings and technical choices
 
@@ -304,10 +307,11 @@ and native layout are specified in [the M5.5 implementation plan](docs/PLAN-M5.5
 
 ## 6. Persistence and library identity
 
-Store versioned settings and per-book state under:
+Store versioned settings and per-book state on Adam's user SD card (host preview
+uses `$HOME/.epubreader/`):
 
 ```text
-$HOME/.epubreader/
+/media/sdcard/epubreader/
     config.json
     session.json
     books/
@@ -504,30 +508,43 @@ track information, and host/device audio verification. Target artifact:
 
 ### Milestone 5.5 — Power awareness and reading controls
 
-**Implementation status:** planned from accepted M5 `0.5.0`, before M6.
+**Implementation status:** production `0.5.7` from accepted M5
+`0.5.0`, before M6. Power observation/policy, acknowledged low-power transitions,
+repeat controls/persistence, grouping, SD-card state/content defaults, tests and
+delivery are implemented. The file-system request is part of M5.5, with a
+documented one-time copy for existing home-directory state.
+Normal shutdown is confirmed by the user from the OPK and enabled for critical
+battery handling. Temporary Y/test-build code is retired; battery accuracy remains
+an explicit voltage estimate. Confirmed device evidence and further scenarios are in
+see [power profile](docs/POWER-PROFILE-M5.5.md),
+[verification](docs/VERIFICATION-M5.5.md), and
+[device checklist](docs/DEVICE-TEST-M5.5.md).
 
 **Detailed implementation plan:** [Milestone 5.5 plan](docs/PLAN-M5.5.md), including
 RG350 test/Adam hardware investigation, voltage-derived battery estimates,
 critical checkpoint acknowledgement, threshold/charging policy, conditional
-normal shutdown, repeat-mode EOF semantics, grouping, and verification.
+normal shutdown, repeat-mode EOF semantics, grouping, SD-card integration, and verification.
 
-**Target artifact:** `dist/epubreader-m5.5-0.5.5.opk`.
+**Target artifact:** `dist/epubreader-m5.5-0.5.7.opk`.
 
 **Deliverables:**
 
 - Popup battery percentage and charging/external-power status.
 - Static two-native-pixel red frame below 15% on battery.
 - One-shot save/stop/return-to-list notification at 5%, allowing explicit reopen.
-- App-wide normal poweroff at 2% if supported, otherwise a documented
-  checkpoint/list fallback with an explanation of the unsupported capability.
+- App-wide normal poweroff at 2% on the confirmed Adam profile, with fresh-data
+  guards and logged checkpoint/list fallback on unavailable/failed commands.
 - Persisted Music Repeat popup item: ALL / ONE / STOP; manual skip in every mode.
 - Reading → Unread → Read grouping with alphabetical order and preserved selection.
+- Better File System Integration: `/media/sdcard/epubreader` for device state,
+  `/media/sdcard/books` and `/media/sdcard/music` fresh defaults; preserve custom
+  folder settings and document existing-state transfer.
 - Testable OPK/checksum, controls, hardware-profile notes, host evidence, and a
   focused device acceptance checklist.
 
 **Exit criteria:** deterministic power/EOF/grouping and failure-path host checks
 pass; the user verifies battery reporting against RG350 test, power transitions,
-repeat controls, and grouping on RG280V. Shutdown support is established from the
+repeat controls, grouping, and SD-card state persistence on RG280V. Shutdown support is established from the
 actual OPK context and either verified or explicitly recorded as unavailable
 with the specified fallback before closing the milestone.
 

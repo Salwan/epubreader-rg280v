@@ -1,223 +1,67 @@
 EPUB Book Reader for RG280V
 =========================================
 
-Would be awesome if I can read epub books on my RG280V.
+Specific for Adam 2.1 (OpenDingux-based) firmware on Anbernic RG280V, it won't work for other Adam 2.1 devices that use a different screen as this is optimized to render on the RG280V resolution.
 
-## Implementation status
+## Install
 
-**Milestone 5: accepted on RG280V / Adam v2.1 with version `0.5.0`.**
+* Copy the epub reader's `.OPK` file to: `/media/sdcard/apps`
+* Copy your epub books to: `/media/sdcard/books`
+* Copy your ambient mp3 files to: `/media/sdcard/music`
 
-The user tested and verified M5 on-device. The acceptance record is in
-[DEVICE-TEST-M5.md](docs/DEVICE-TEST-M5.md). Host Debug and ASan/UBSan checks pass
-**8/8** each; independent MIPS builds produce byte-identical OPKs.
+Try [Project Gutenberg](https://www.gutenberg.org/) for a near infinite number of epub books.
 
-The production reader now has startup-only MP3 discovery, per-book shuffle
-playback, automatic continuation, brief A play/pause/resume, held A skip,
-physical-volume persistence, Books List navigation chirps, and compact popup
-track information. Every newly opened/resumed book starts with music stopped;
-returning to the list stops it. Music-folder changes apply on the next launch.
+## Features
 
-- Build: `bash scripts/build-opk.sh`
-- Artifact: `dist/epubreader-m5-0.5.0.opk`
-- [Controls](docs/CONTROLS.md)
-- [M5 installation and audio acceptance checklist](docs/DEVICE-TEST-M5.md)
-- [M5 verification](docs/VERIFICATION-M5.md)
-- [M5 implementation plan](docs/PLAN-M5.md)
+* Native App, shows up in Apps menu as `EPUB Reader`
+* Lists books in 3 groups: reading, unread, and read
+* Remembers app state: if you were reading a book when you closed app, it resumes from there
+* Can exit app at any time with the standard SELECT+START hotkey, saves state prior to exiting
+* Selection of nice dark and light themes, switch between them with L2 and R2
+* Three font sizes optimized for the RG280V screen: SMALL, MEDIUM, and LARGE
+* Turn pages with: DPAD LEFT/RIGHT, and L1/R1
+* Can jump to any part of the book with a slider: SELECT while reading a book
+* Monitors battery percentage and shows a visual warning when battery is low, and in case user fell asleep, will safely shutdown device when reaching 2%
+* Embedded mp3 player let's you play your ambient music tracks, download your favorite 1 hour of rain/ocean waves/fireplace/etc as mp3 and place it in the music folder
+* Embedded images are correctly rendered
 
-### Next milestone: 5.5 — Power awareness and reading controls
+## Controls
 
-[Milestone 5.5 implementation plan](docs/PLAN-M5.5.md) schedules the requested
-battery percentage/charging information, low-battery frame and save/list behavior,
-conditional 2% system shutdown, Music Repeat (ALL / ONE / STOP), and
-Reading → Unread → Read library grouping before Milestone 6. It includes Adam's
-bundled **RG350 test** as the battery-reference app. Target version is `0.5.5`;
-implementation is planned.
+All controls are shown in App, so no need to memorize anything.
 
-### Accepted interface milestone
+App hotkeys:
 
-**Milestone 4: accepted on RG280V / Adam v2.1 with version `0.4.0`.**
+* SELECT+START: closes app
+* R2 and L2: switch to next/previous theme
 
-The user tested M4 and confirmed that all features are operational and correct.
-The acceptance record is in [DEVICE-TEST-M4.md](docs/DEVICE-TEST-M4.md).
+In books List:
 
-The complete interface adds a Select-operated jump slider with layout-derived
-target page previews, one-request confirmation, exact-origin cancellation, and
-held-input/overlay arbitration. It preserves M3 settings and bookmarks.
+* DPAD to navigate through books
+* A to begin reading a book
+* X shows the settings popup which allows setting a different books/music folder and to initiate a rescan of the library
 
-- Build: `bash scripts/build-opk.sh`
-- Artifact: `dist/epubreader-m4-0.4.0.opk`
-- [Complete device and desktop controls](docs/CONTROLS.md)
-- [Installation and M4 device acceptance checklist](docs/DEVICE-TEST-M4.md)
-- [M4 host/build verification and artifact checksum](docs/VERIFICATION-M4.md)
-- [M4 implementation plan](docs/PLAN-M4.md)
-- [Build and host preview instructions](docs/BUILD.md)
+During book reading:
 
-While reading, **Select** opens the slider. Left/Right adjusts −/+1%; Up/Down
-adjusts +/−10%; brief A jumps; B/Select cancels; X cancels and opens the popup.
-Preview leaves the page and progress bar untouched. Select+Start saves/exits
-everywhere. All M4 features have been verified by the user on the device.
+* DPAD Right/Left, R1/L1: to flip between pages
+* X to show popup menu which lets you close book, change font size and music repeat mode
+* Press A to start/stop ambient music playback
+* Hold A while music is playing to jump to next track
+* SELECT to show the jump slider which allows jumping to any place in the book
+* Volume buttons to raise/lower music volume
 
-### Previous library milestone
+## Limitations
 
-**Milestone 3: accepted on RG280V / Adam v2.1 with version `0.3.0`.**
+* English prose only, though fonts used are unicode and text renders as utf8 so many languages that use latin-like alphabets should display perfectly, maybe even more complex languages but there are no guarantees
+* no mathematical notation (untested), or tables (buggy due to screen resolution limits)
+* no in-book hyperlinks support
+* epub for books, mp3 for ambient tracks
+* tested and verified on Anbernic RG280V with Adam 2.1 firmware only
 
-The user verified all core features and confirmed the app is fully usable on the
-device. The acceptance record is in [DEVICE-TEST-M3.md](docs/DEVICE-TEST-M3.md).
+## Wishlist
 
-The app now opens a Books List, indexes EPUB metadata without pagination, tracks
-per-book progress/completion, and resumes the last reader/list session. Content
-fingerprints preserve bookmarks across renames; changed/missing books recover to
-the list. Versioned JSON state is written atomically, with automatic M2 migration.
+* verified support for non-English languages including complex and right-to-left ones
+* virtual mouse cursor that can click on in-book hyperlinks
 
-- Build: `bash scripts/build-opk.sh`
-- Artifact: `dist/epubreader-m3-0.3.0.opk`
-- [Installation, controls, migration, and device checklist](docs/DEVICE-TEST-M3.md)
-- [Milestone 3 verification and artifact checksum](docs/VERIFICATION-M3.md)
-- [Build and host preview instructions](docs/BUILD.md)
-- [Implementation plan and design decisions](docs/PLAN-M3.md)
+## AI Usage Disclaimer
 
-Put EPUBs directly in `$HOME/books`, or use **X → Books folder** from the list.
-Up/Down selects, Left/Right pages through the list, and brief A opens a book.
-X in the reader opens Back to book list / Font size / Exit. Highlight Font size
-and use Left/Right to adjust it while preserving the text anchor. L2/R2 changes
-theme; Select+Start saves/exits everywhere. On first upgrade, M2 preferences and
-bookmarks are imported; subsequent launches restore the production session.
-
-### Previous rendering milestone
-
-**Milestone 2: accepted on RG280V / Adam v2.1 with version 0.2.0.**
-
-Version `0.2.1` incorporates the device feedback: redder amber foregrounds,
-warmer warm2 paper, and font-size adjustment in the reader popup menu. The user
-has deferred malformed-book and prolonged-session device checks to normal use.
-
-The reader loads and paginates EPUB 2/3 with headless CRengine, renders through
-the device-selected box-filtered path, supports three font presets and six
-themes, and saves/restores serialized text anchors. A cancellable reader worker
-keeps the interface responsive; document and neighboring-page caches are bounded.
-
-- Build: `bash scripts/build-opk.sh`
-- Artifact: `dist/epubreader-m2-0.2.1.opk`
-- [Updated controls and focused device follow-up](docs/DEVICE-TEST-M2-0.2.1.md)
-- [Accepted Milestone 2 checklist and device feedback](docs/DEVICE-TEST-M2.md)
-- [Milestone 2 host verification and artifact checksum](docs/VERIFICATION-M2.md)
-- [Build and host preview instructions](docs/BUILD.md)
-
-The historical M2 slice opens `$HOME/books/milestone2.epub` if present; otherwise a bundled
-prose specimen is used. Up/Down switches between the EPUB 2/3 specimens outside
-the menu. X opens the popup; Down highlights **Font size**, and Left/Right adjusts
-small/medium/large while preserving the text anchor. B closes the menu, or
-saves/reopens when reading. Select+Start saves/exits. Each book retains its own
-text position across runs.
-
-**Milestone 1: accepted on RG280V / Adam v2.1; all device checklist items passed.**
-
-The diagnostic OPK exercises native display patterns, both aspect-correct font
-paths, button events, six themes, MP3/chirp audio, and ALSA volume persistence.
-Version `0.1.1` incorporates the device feedback: a two-native-row progress bar,
-warmer amber, and a warm light-background `warm2` palette. The selected reader
-path is 640×480 with horizontal 2:1 box filtering; UI bitmap text is 5×14 native.
-
-- Artifact: `dist/epubreader-diagnostic-m1-0.1.1.opk`
-- [Build and host verification](docs/BUILD.md)
-- [Milestone 1 verification results and artifact checksum](docs/VERIFICATION.md)
-- [Installation, controls, and visual follow-up](docs/DEVICE-TEST-0.1.1.md)
-- [Passed checklist and device feedback](docs/DEVICE-TEST.md)
-- [Pinned dependencies and licenses](third_party/README.md)
-
-The feature design below remains the baseline for the complete reader.
-
-It has a strange chipset, but there are already many apps made for it using the platform name "OpenDingux" specifically for an older Anbernic device RG350.
-
-## Resources for development
-
-* [OpenDingux Linux code repositories](https://github.com/OpenDingux)
-* [List of software packages for OpenDingux with source code for many](https://github.com/retrogamehandheld/OpenDingux)
-* [Apps for RG350](https://github.com/RafaVico/RG350_APPREPOSITORY)
-
-These apps are useful for reference and they work well on the RG280V:
-
-* [Commander file manager](https://github.com/od-contrib/commander), uses a nice native-resolution font
-* [GMU Music Player](https://github.com/denis-n-kuznetsov/gmu), supports mp3 playback
-* PdfViewer, source downloaded in: `~/dev/opendingux.pdfviewer/pdfviewer.sourcecode.Hardyx/`
-
-## App Design
-
-The app is distributed as one OpenDingux `.opk` package and targets Adam v2.1 on the RG280V.
-
-App drawing should look right on the unusual RG280V screen: the native framebuffer is 320x480, but each square pixel occupies two vertical framebuffer pixels. The aspect-correct logical resolution is therefore 320x240. Pixel-specific indicators below are measured in **native framebuffer pixels**, not logical pixels.
-
-The initial reading target is English-language prose in unprotected, reflowable EPUBs.
-
-### Content folders and saved state
-
-* EPUB books are found in `$HOME/books` by default.
-* MP3 music is found in `$HOME/music` by default.
-* Both folder paths can be changed in the app settings.
-* Music-folder changes take effect on the next launch, preserving startup-only scanning.
-* Settings, reading positions, completion status, and resume state are saved under `$HOME/.epubreader/`.
-* On a fresh launch, the app opens the Books List. If the app was exited while reading, the next launch resumes that book at its last saved position. If it was exited from the Books List, the app returns to the list.
-
-Default theme is dark. Default font size is medium. Both are remembered when changed.
-
-At any point during the app, pressing select + start exits.
-
-### Books List screen
-
-Uses 5×14-native-pixel bitmap text (small and sharp) to display the list of books.
-
-Lists all the books found in the folder with the status of each book (percentage of completion) and a checkmark if the book has been read.
-
-Shows current active theme from available themes (remembers which one was set last): dark (default), warm, amber, matrix, light, and warm2 (very warm light background with dark text).
-
-Themes can be changed by pressing R2 and L2 buttons.
-
-Shows current active book font size (remembers last set): small, medium (default), large.
-
-The books list displays the selected font size read-only. Font size is adjusted from the book reader's popup menu.
-
-Books are sorted alphabetically. Finished books are listed at the end. When the list overflows the screen, a scrollbar appears at the right and is 2 native framebuffer pixels wide.
-
-* A cursor that highlights the current book is used to select which book to open.
-* dpad up and down to move up and down.
-* dpad right and left to move entire pages (page up and down basically) or if it's a small list, just jumps to first and last page respectively.
-* moving between selections plays a very brief warm chirp for better feel.
-* holding dpad up or down behaves like expected: moves one book up/down, then after a short delay key repeat kicks in and it quickly moves through books.
-* book can be opened by pressing A button.
-
-### Book Reader screen
-
-The reading experience is focused with only these two components shown during reading:
-
-* the actual book text rendered using truetype utf-8 font at the preset size, at 640×480 and horizontally box-filtered to 320×480
-* a 2-native-pixel-high bottom bar indicating the current reading position; use a low-contrast color so it does not stand out.
-
-in-book hyperlinks are rendered but aren't clickable/interactable (minimalism is the point).
-
-Theme can be changed by pressing R2 and L2 buttons. Font size is changed from the popup menu while reading, preserving the original text anchor through re-pagination.
-
-* dpad left or L1 turns to the previous page.
-* dpad right or R1 turns to the next page.
-* Pressing select opens or closes the position slider. While it is open, dpad left and right adjust the target by 1%, dpad up and down adjust it by 10%, A jumps to the selected position, and B cancels. Pressing X cancels the slider and opens the popup menu.
-
-Pressing X brings up the popup menu and book header panel:
-
-* Book header panel occupies the top of the screen and shows the book info (title, file, page count, etc).
-* Popup menu is an overlay transparent panel with a list of actions rendered with bitmap font at native screen resolution (to stand out from the book text behind it).
-* a minimal cursor shows the current menu choice, defaults to first.
-* move through menu with dpad up and down, select with A and escape with B (or by closing the menu with the X button).
-* Menu currently contains these actions:
-    * back to book list (button)
-    * font size (small / medium / large): highlight with dpad up/down, then use left/right to decrease/increase the preset. Changes apply immediately, clamp at small/large, and keep the menu open with the same row selected. Returning to the original size restores the original page without anchor drift. A does not change this setting.
-    * exit app (button)
-
-#### Embedded Music Player
-
-Available when in book reader screen. Music doesn't start by itself or resume from last playback, user must initiate playback everytime they open a new book. Music stops when user goes back to books list screen.
-
-* Plays mp3 files found in predetermined music folder.
-* Music tracks folder is scanned only once at start of App.
-* Starting and pausing/resuming music is done by pressing the A button briefly (as long as the popup menu is closed)
-* Tracks can be skipped by holding A button (one skip per button hold)
-* Music plays in shuffle mode, a random playlist is generated everytime playback is started and if playlist is finished, a new one is generated and played. Playlist is a shuffled list of all tracks found.
-* Volume is controlled with the physical volume buttons, defaults to 50%, and remembers its last setting.
+While this app was designed by me (down to individual pixels in some cases) and every feature/milestone was verified directly on the physical device. AI wrote the docs, build files, all of the code, and test suites.

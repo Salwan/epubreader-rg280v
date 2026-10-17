@@ -1,4 +1,4 @@
-# EPUB Reader 0.5.0 — Controls
+# EPUB Reader 0.5.7 — Controls
 
 Target: RG280V / Adam v2.1. All A selections are **brief presses, activated on
 release**. A hold of 600 ms is consumed once and does not also activate a short
@@ -36,6 +36,16 @@ EPUB discovery is nonrecursive and case-insensitive. The list displays font size
 read-only. Selection changes chirp; clamped boundaries and menu movement are silent.
 Music-folder changes are saved and take effect on the next app launch.
 
+On Adam, fresh content defaults are `/media/sdcard/books` and
+`/media/sdcard/music`; config/bookmarks/cache/logs live under
+`/media/sdcard/epubreader`. Saved folder settings override fresh defaults.
+See the [M5.5 upgrade instructions](DEVICE-TEST-M5.5.md#better-file-system-integration--setup-and-upgrade)
+for carrying existing home-directory state onto the SD card.
+
+Books are grouped by **Reading → Unread → Read**, then alphabetically. Grouping
+uses the current position, independently of the sticky finished checkmark.
+`<1%` means a known nonzero position below 1%; unknown progress displays `0%`.
+
 ## Reading and popup
 
 | Context / button | Action |
@@ -46,9 +56,10 @@ Music-folder changes are saved and take effect on the next app launch.
 | Reading: Select | Open position-jump slider when a page is ready and the worker is idle |
 | Reading: brief A | Start / pause / resume background music |
 | Reading: hold A for 600 ms | Skip once; stays paused if paused, no action if stopped |
-| Popup: Up / Down | Select Back to book list, Font size, Exit application |
+| Popup: Up / Down | Select Back to book list, Font size, Music Repeat, Exit application |
 | Popup: Left / Right on Font size | Decrease / increase small → medium → large; clamp at ends |
-| Popup: A | Activate Back / Exit; consumed on Font size |
+| Popup: Left / Right on Music Repeat | ALL → ONE → STOP, clamped; responsive during reader work |
+| Popup: A | Activate Back / Exit; consumed on Font size and Music Repeat |
 | Popup: B / X | Close popup |
 
 Font changes preserve the original text anchor and keep the same menu row
@@ -70,6 +81,12 @@ Pause/resume retains the track position/order. A hold advances once and suppress
 its release action. Paused skip selects the next track at its beginning silently.
 Corrupt/removed tracks are excluded until restart; exhaustion stops cleanly.
 
+**Music Repeat** is app-wide and remembered: **ALL** continues shuffled cycles,
+**ONE** repeats the current successful track at its natural end, and **STOP**
+stops after that track drains. Changing the setting keeps the current playback
+and shuffle position. Manual long A skips in every mode; paused skip stays silent.
+A brief press after STOP ends starts a fresh shuffle session with the same mode.
+
 Music continues under popup/slider overlays, whose A actions never control music.
 The popup shows playback state and `track/count`; the track number is its stable
 one-based position in the sorted startup catalog, not its shuffled playlist slot.
@@ -78,6 +95,36 @@ Scan/playback failures are explained in the popup and logs. Normal reading keeps
 only content and progress. Physical volume restores once at launch (initially
 50% of the raw range), then firmware changes are observed and saved; the app does
 not apply an additional step for the physical keys.
+
+## Power awareness and notifications
+
+The reader popup displays native battery capacity or a `~` voltage estimate.
+`USB POWER` confirms a cable connection; Charging/Full appear only when reported
+by the supply. Missing/invalid or older-than-six-second readings show unknown/stale.
+Host preview has no hardware observer by default; `--power-fixture DIR` injects a
+sysfs-shaped test tree with shutdown unavailable.
+
+- Below **15%**, confirmed battery operation displays a static red two-native-pixel
+  reader frame through popup/slider overlays. Progress rows 478–479 remain intact.
+- Two fresh samples at **≤5%** interrupt reading/opening, stop music, and checkpoint
+  the last completed page before a list session/config. The notification shows
+  `SAVING`, `POSITION SAVED`, or `SAVE FAILED`. **A/B** dismisses after the save
+  result; dismissal cannot also open a book. **X** retries a failed captured save.
+  Explicit reopening at 3–5% is allowed; it is not immediately interrupted again.
+- Two fresh samples at **≤2%** prepare state from every screen, with a five-second
+  save budget and one automatic retry, then request **normal firmware shutdown**
+  through the confirmed Adam `/bin/sync` → `/sbin/poweroff` sequence. Incomplete
+  saves are reported as incomplete; the critical-energy deadline permits a
+  best-effort shutdown using the last atomic durable files. A fresh battery/profile
+  check is repeated before each command. Command failures remain in the stopped
+  list with an explanation. Select+Start remains available; pending critical
+  preparation keeps priority. Y has no manual-shutdown action.
+- Cable power, Charging, or Full suppress automatic actions. Unknown/conflicting/
+  stale data cannot initiate them. Recovery re-arms the 5% episode after two ≥7%
+  readings, and the critical episode after two ≥4% readings; cable power re-arms both.
+
+See [power profile and diagnostic instructions](POWER-PROFILE-M5.5.md) and the
+[M5.5 device checklist](DEVICE-TEST-M5.5.md) for the confirmed mechanism and remaining evaluation scenarios.
 
 ## Jump slider
 

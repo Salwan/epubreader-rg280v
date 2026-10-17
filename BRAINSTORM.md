@@ -35,6 +35,10 @@
 * Music plays in shuffle mode, a random playlist is generated everytime playback is started and if playlist is finished, a new one is generated and played.
 * Volume is controlled with the physical volume buttons, defaults to 50% and remembers were it was last.
 
+## Runtime Issues
+
+* BUG: (Book viewing issue)  two of the books I tested show the first title page(s) correctly but then when moving to the next pages (with dpad-right or R1 button), all I get is an empty screen no matter how many pages I move through. I also noticed that the info popup shows the page stuck on PAGE 2 or PAGE 3 (depending on which page has the book title apparently?). The only way I was able to get to the book's content is to use the jump slider and jump forward by a percentage which jumps into that part of the book correctly (page renders) and then I have to move back through the pages manually until reaching the first page of the book's content. Included one of the books that the problem occurs: `tmp/stuck-on-page3.epub`
+
 ## Future Work
 
 Ideas for the future after epubreader is complete:

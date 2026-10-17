@@ -1,28 +1,41 @@
 # Milestone 5.5 — Power awareness and reading controls
 
-**Status:** planned, following device-accepted M5 `0.5.0` and before M6 hardening.
+**Status:** production `0.5.7`, following device-accepted M5
+`0.5.0` and before M6 hardening. See [verification](VERIFICATION-M5.5.md) and
+[device checklist](DEVICE-TEST-M5.5.md). User probes confirm unplugged/connected
+supply paths/units/design bounds and the USB `online=0/1` signal. The user confirmed
+normal reader-context shutdown; logs show save success followed by both firmware
+commands exiting 0. Version 0.5.7 enables the confirmed backend for critical battery
+handling and retires the temporary Y shortcut/build machinery. Percentage/full-state
+comparison remains an evaluation item, not an invented charge-state measurement.
+See [power capability notes](POWER-PROFILE-M5.5.md) and
+[the accepted shutdown record](VERIFICATION-SHUTDOWN-M5.5.md).
 
-**Target version/artifact:** `0.5.5`, `dist/epubreader-m5.5-0.5.5.opk`, checksum,
+**Target version/artifact:** `0.5.7`, `dist/epubreader-m5.5-0.5.7.opk`, checksum,
 updated controls, host verification, and an RG280V / Adam v2.1 device checklist.
 
 ## 1. Outcome and baseline
 
-Implement the four requests in [BRAINSTORM.md](../BRAINSTORM.md#feature-requests):
+Implement the five requests in [BRAINSTORM.md](../BRAINSTORM.md#feature-requests):
 
 1. Battery percentage and charging/power information in the reader popup, a static
    red low-battery frame below 15%, and checkpoint/return-to-list at 5%.
 2. App-wide normal system shutdown at 2% on battery, if Adam permits it.
 3. A **Music Repeat** popup row with **ALL**, **ONE**, and **STOP**.
 4. Books List ordering by **Reading → Unread → Read**, alphabetical within groups.
+5. **Better File System Integration:** device state/config/cache under
+   `/media/sdcard/epubreader`, default books at `/media/sdcard/books`, and default
+   music at `/media/sdcard/music`, keeping user data on Adam's second SD card.
 
 The accepted baseline is [M5 device acceptance](DEVICE-TEST-M5.md) and
 [M5 verification](VERIFICATION-M5.md). The application uses C++17/SDL 1.2,
 a replaceable CRengine child, serialized atomic JSON storage, and the M5 music
-facade with generation-tagged terminal events. There is currently no battery
+facade with generation-tagged terminal events. That M5 baseline has no battery
 observer, low-power policy, system-poweroff adapter, or repeat preference.
 
 The behaviors below are implementation decisions for M5.5. Existing M5 controls
-and build documentation describe the accepted `0.5.0` build until M5.5 ships.
+and build documentation now describe the `0.5.7` production build; historical M5
+acceptance/verification records retain the accepted `0.5.0` baseline.
 
 ## 2. Hardware findings and first implementation step
 
@@ -56,7 +69,7 @@ Verify one normal reader-context shutdown during device testing, including saved
 state after reboot. If the reader cannot access a supported shutdown mechanism,
 record that concrete limitation and deliver checkpoint/list fallback with a clear
 status. The requested shutdown feature is conditional on this capability; the
-other three requests proceed independently.
+other four requests proceed independently.
 
 ## 3. Battery observation and threshold policy
 
@@ -259,11 +272,34 @@ incremental indexing, duplicate copies, renames, restart, and reader/list return
 Automatic regrouping must not chirp. No book-state migration or new progress
 measurement is needed; imported unknown progress refreshes on a successful open.
 
+### 6.1 Better File System Integration — 0.5.6 follow-up
+
+On RG280V / Adam v2.1 the second card is mounted at `/media/sdcard`. Use
+`/media/sdcard/epubreader` for all production config, sessions, book records,
+cache, and logs; fresh content defaults are `/media/sdcard/books` and
+`/media/sdcard/music`. The OPK stays in `/media/sdcard/apps`.
+
+Saved Books/Music folder choices take precedence over fresh defaults, and explicit
+`--state-dir`, `--books-dir`, and `--music-dir` overrides remain usable. Host preview
+keeps home-relative defaults; smoke state remains isolated under its supplied root.
+
+For an existing installation, exit from the Books List and copy the old
+`$HOME/.epubreader` directory to `/media/sdcard/epubreader` before first launch.
+The device checklist gives the copy step and folder-change procedure. Copying
+preserves schemas/bookmarks/preferences; copied config retains its saved folders.
+Content files can be placed on the second card and those folders selected in-app.
+This path change does not automatically relocate existing files.
+
+Verify a fresh SD-style state root, persisted custom folder overrides and critical
+checkpoints/cache, and reopening the same state after the firmware HOME changes.
+Use build-local fixture paths for all host checks.
+
 ## 7. Integration and native layout
 
 | Files | Planned work |
 |---|---|
 | `src/platform/power.*`, `scripts/probe-power.sh` | Verified sysfs profile, bounded observer snapshots, device capability diagnostics, and isolated normal-poweroff adapter. |
+| `src/platform/paths.hpp`, `src/app/reader_main.cpp`, `src/storage/store.*` | Device SD-card state/content defaults; saved config and explicit overrides take precedence; retain host/smoke isolation. |
 | `src/app/power_policy.*` | SDL-independent threshold confirmation, freshness, episode latches, and typed power effects with injected time/samples. |
 | `src/app/controller.*` | Low-power preparation/list modal, captured checkpoint ownership, transition consumption, power priority, and exit reason. |
 | `src/storage/store.*` | Critical checkpoint acknowledgement/priority and optional repeat config preference; keep ordinary atomic writes/retries. |
@@ -290,11 +326,13 @@ M4's normal row-477 invariance. Use an explicit red warning color in every theme
 | Step | Work | Completion evidence |
 |---|---|---|
 | 1. Device power profile | Probe and compare installed RG350 test; identify voltage/capacity, external power, and normal shutdown permissions. | Source/profile notes and early device observations; shutdown capability recorded explicitly. |
+| 1a. Normal shutdown capability | Completed the temporary button-operated experiment and recorded the user's successful device shutdown plus command/save logs; remove the experiment from production. | `0.5.6-test` accepted for normal shutdown; `0.5.7` has the confirmed guarded automatic backend and no manual shortcut/test flavor. |
 | 2. Observer and pure policy | Implement snapshots, estimated/native percentage, freshness, smoothing, thresholds, and latches. | Fixture-sysfs and injected-time boundary/noise/suspend tests. |
 | 3. Durable transitions | Add critical write tickets, 5% list notification, 2% preparation/poweroff adapter, and main-loop priority. | Delayed/failed writes, stale worker results, skipped thresholds, and fake shutdown ordering pass. |
 | 4. Repeat behavior | Add enum/config/menu and generation-safe Finished handling. | Model and real-decoder ALL/ONE/STOP, manual-skip, pause, and EOF-race checks pass. |
 | 5. Grouping and composition | Add rank/sort, sub-1% display, battery/menu/frame/modal layout. | Selection/reorder and all-theme native-pixel/screenshot checks pass. |
-| 6. M5.5 delivery | Set `0.5.5`, update launcher/CLI/log/package names/manual selection, complete verification, and reproduce the OPK. | Artifact/checksum, host/sanitizer checks, package audits, and device checklist ready. |
+| 5.5. Better File System Integration | Use Adam's `/media/sdcard` state/content layout; document the one-time state copy and folder selection. | Fresh SD-style state, custom-folder persistence, cache/checkpoint, and changed-HOME checks pass; device upgrade checklist ready. |
+| 6. M5.5 delivery | Set `0.5.7`, update launcher/CLI/log/package names/manual selection, complete verification, and reproduce the OPK. | Artifact/checksum, host/sanitizer checks, package audits, and confirmed shutdown record ready. |
 
 ### Focused host coverage
 
@@ -321,13 +359,15 @@ M4's normal row-477 invariance. Use an explicit red warning color in every theme
   migration state, finished-but-revisited and one-page edge cases, deterministic
   large mixed libraries, rename/duplicate/selection/viewport preservation, no
   automatic chirp, six-theme popup/modal/frame, and exact native indicator bounds.
+- **File system:** device vs host defaults, isolated SD-style config/session/book/
+  cache writes, preserved saved folder choices, and state reuse with changed HOME.
 
 Retain the eight accepted M5 CTest checks and add a focused `power-core` check.
 Use build-local fixtures/state and project `tmp/`; keep device readings and
 poweroff execution behind injected interfaces. Run Debug and ASan/UBSan workflows
 from [BUILD.md](BUILD.md), followed by the pinned MIPS cross-build. Reproduce in
-`build/repro-m5.5`, package to `dist/repro-m5.5.opk`, and compare it against
-`dist/epubreader-m5.5-0.5.5.opk`. Audit ELF/library closure, complete extraction,
+`build/repro-m5.5-0.5.7`, package to `dist/repro-m5.5-0.5.7.opk`, and compare it against
+`dist/epubreader-m5.5-0.5.7.opk`. Audit ELF/library closure, complete extraction,
 manuals/controls, notice hashes, original-asset allowlist, and whitespace/links.
 
 ## 9. Delivery and device acceptance
@@ -358,6 +398,8 @@ The device checklist must cover:
    books, sticky checkmarks, one-page books, and selection after regrouping.
 8. A sustained reading/music session with power polling, physical-volume keys,
    all overlays, and both global exit-chord orders.
+9. Fresh SD-card defaults, one-time state copy on upgrade, custom-folder settings,
+   SD-card bookmarks/config/cache/logs after restart and firmware HOME replacement.
 
 M5.5 is ready for evaluation when host/build checks and its OPK/checksum/manual
 are available. Send the project-required Gotify notification with project,

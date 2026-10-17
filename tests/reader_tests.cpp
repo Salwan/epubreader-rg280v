@@ -109,6 +109,11 @@ void checkMenuControls() {
     check(action(A::AShort).effect == E::None && action(A::ALong).effect == E::None && action(A::Y).effect == E::None, "Font row has an unintended activation/hotkey");
     check(action(A::Right, 1, true).effect == E::None, "Busy reader accepted another font job");
     action(A::Down, 1, true);
+    check(controls.selected() == M::MusicRepeat && action(A::AShort, 1, true).effect == E::None, "Repeat row activated A");
+    check(action(A::Right, 1, true).effect == E::Repeat && action(A::Right, 1, true).value == 1, "Busy reader blocked repeat");
+    check(controls.handle(A::Right, 1, 0, true, nullptr, epub::RepeatMode::Stop).effect == E::None, "Repeat upper clamp");
+    check(controls.handle(A::Left, 1, 0, true, nullptr, epub::RepeatMode::All).effect == E::None, "Repeat lower clamp");
+    action(A::Down, 1, true);
     check(action(A::AShort, 1, true).effect == E::Quit, "Popup exit unavailable during reader work");
     check(action(A::Quit, 1, true).effect == E::Quit, "Global exit did not override popup/busy state");
     action(A::B, 1, true);

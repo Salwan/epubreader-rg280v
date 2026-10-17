@@ -1,4 +1,4 @@
-# Building the Milestone 5 reader
+# Building the Milestone 5.5 reader
 
 ## Host prerequisites (Fedora 42, x86_64 Linux)
 
@@ -30,8 +30,8 @@ archives, extracts and relocates the SDK under
 builds, audits the ELF and full shared-library dependency closure, and packages:
 
 ```text
-dist/epubreader-m5-0.5.0.opk
-dist/epubreader-m5-0.5.0.opk.sha256
+dist/epubreader-m5.5-0.5.7.opk
+dist/epubreader-m5.5-0.5.7.opk.sha256
 ```
 
 The engine and hashing library are built statically. Rendering features are
@@ -57,12 +57,12 @@ Package timestamps and compile-time content do not depend on the wall clock.
 ```sh
 export OD_SDK="$PWD/third_party/sdk/gcw0-toolchain"
 export SOURCE_DATE_EPOCH=1663804800
-cmake -S . -B build/repro-m5 -G Ninja \
+cmake -S . -B build/repro-m5.5-0.5.7 -G Ninja \
     -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/rg280v.cmake \
     -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build build/repro-m5 --parallel 4
-python3 scripts/package.py --build build/repro-m5 --output dist/repro-m5.opk
-cmp dist/epubreader-m5-0.5.0.opk dist/repro-m5.opk
+cmake --build build/repro-m5.5-0.5.7 --parallel 4
+python3 scripts/package.py --build build/repro-m5.5-0.5.7 --output dist/repro-m5.5-0.5.7.opk
+cmp dist/epubreader-m5.5-0.5.7.opk dist/repro-m5.5-0.5.7.opk
 ```
 
 The pinned SDK and squashfs-tools version are part of reproducibility. ELF and
@@ -70,6 +70,16 @@ library inspection is performed with the SDK's `mipsel-linux-readelf`; the
 packager refuses host binaries and unresolved target libraries. `$ORIGIN/lib`
 and the launcher-local `LD_LIBRARY_PATH` locate the bundled libraries. Firmware
 provides the uClibc loader/libc (see `third_party/README.md` for Adam ABI evidence).
+
+### Confirmed production shutdown
+
+Version 0.5.7 enables the device-confirmed normal firmware backend for critical
+low-battery shutdown. It requires a native device/MIPS build, the observed
+`jz-battery/usb-charger` profile, and fresh confirmed on-battery percentage ≤2%.
+Host builds and any `--smoke-test` / `--power-fixture` run cannot enable real
+firmware commands. The observer snapshot is checked again before both `/bin/sync`
+and `/sbin/poweroff`. See [the accepted shutdown record](VERIFICATION-SHUTDOWN-M5.5.md).
+The temporary shortcut, build option, test launcher and flavor manifest are retired.
 
 ## Host build, preview, and checks
 
@@ -100,8 +110,10 @@ build/host/epubreader --assets "$PWD/assets" \
 ```
 
 Without `--book`, the app opens the Books List or restores the saved reader
-session. Defaults are `$HOME/books` and `$HOME/music`; **X → Books folder / Music
-folder** configures them. `--books-dir DIR` and `--music-dir DIR` also override
+session. Device defaults are `/media/sdcard/books` and `/media/sdcard/music`;
+host defaults are `$HOME/books` and `$HOME/music`. **X → Books folder / Music
+folder** configures them. Saved folder choices take precedence over defaults.
+`--books-dir DIR` and `--music-dir DIR` also override
 and save these settings. All paths can contain spaces; quote shell arguments.
 
 MP3 discovery runs once at startup on a cancellable scanner thread, using the
@@ -120,10 +132,22 @@ defaults to observation-only and retains saved device mixer preferences. Options
 testing. Smoke mode never opens/restores a hardware mixer; dummy SDL audio is used
 by automated audio checks. Mixer errors do not disable an otherwise working reader.
 
+M5.5 persists **Music Repeat** (ALL / ONE / STOP) without restarting playback;
+natural EOF follows that mode, while manual skip always advances the shuffle.
+Books use current-position Reading → Unread → Read grouping, independently of
+sticky completion. The popup includes battery percentage/source and cable/status;
+the reader has a static warning frame below 15%. Two-sample ≤5% / ≤2% policy runs
+before screen input/work. Critical book → list → config saves have explicit async
+acknowledgement, one retry, and a five-second shutdown preparation budget.
+The production 2% backend uses the normal shutdown sequence confirmed by the user
+from the OPK on Adam v2.1. Spawn/exit/timeout errors retain the stopped-list fallback.
+`--power-fixture DIR` injects a sysfs-shaped tree for manual testing; it cannot
+enable shutdown. Host preview otherwise has unavailable power data.
+
 List controls: Up/Down selects (with repeat), Left/Right pages, brief A opens,
 E/R changes theme, and X opens settings/rescan/exit. Reader controls: Left/Right
 or Q/W turns pages; E/R changes theme; X opens the popup. The first row returns
-to the list. Highlight Font size with Up/Down and adjust with Left/Right; B/X
+to the list. Highlight Font size or Music Repeat with Up/Down and adjust with Left/Right; B/X
 closes the popup. Escape+Enter saves/exits everywhere. Folder selection uses
 arrows/A with Use this folder and parent rows; B cancels.
 
@@ -133,8 +157,13 @@ popup. Movement previews the exact target page without engine work. Confirming
 sends one page request; cancel/no-op confirmation retains the exact origin.
 See [CONTROLS.md](CONTROLS.md) for all contexts and physical/desktop mappings.
 
-Production state defaults to `$HOME/.epubreader/`: `config.json`, `session.json`,
-`books/*.json`, and rebuildable `cache/`. M2 `slice/state.ini` and
+Device production state defaults to `/media/sdcard/epubreader/`: `config.json`,
+`session.json`, `books/*.json`, rebuildable `cache/`, and logs. Host preview uses
+`$HOME/.epubreader/`. The 0.5.6 SD-card integration belongs to M5.5. Existing
+installations can copy `$HOME/.epubreader` to the new root before first launch;
+see [device setup/upgrade](DEVICE-TEST-M5.5.md#better-file-system-integration--setup-and-upgrade).
+Saved config retains its previous content folders; choose new SD folders in-app.
+M2 `slice/state.ini` and
 `slice/books/*.position` are imported idempotently. With `--state-dir DIR`, only
 `DIR/slice/` is considered for migration. For an isolated list preview use:
 
@@ -143,9 +172,12 @@ build/host/epubreader --assets "$PWD/assets" \
     --state-dir "$PWD/tmp/manual-library-state" --books-dir "$PWD/assets/books"
 ```
 
-CTest has **eight checks**, using isolated build-local state and dummy SDL
+CTest has **nine checks**, retaining the eight M5 checks and adding `power-core`,
+using isolated build-local state and dummy SDL
 video/audio where needed. Production storage checks exercise migration, schemas,
-atomic replacement, failed saves/retry, and book-before-session ordering. Library
+atomic replacement, failed saves/retry, and book-before-session ordering. Storage
+checks also cover device/host defaults, SD-style checkpoints/cache and
+persisted custom folders after changing the firmware HOME. Library
 checks cover discovery/signatures/cache, duplicates, deterministic 1,000-entry
 sorting/selection, rename/removal, and navigation boundaries. Application checks
 exercise the production controller with real child workers: list/reader resume,
@@ -168,6 +200,25 @@ add 13 music popup BMPs, including all six themes and error/unavailable states.
 Production reader smoke plays actual PCM and exercises paused skip, adding
 `music-paused.bmp`. Storage checks cover failed volume saves and preserving the
 latest mixer/theme/font/folder values through retry/restart.
+
+M5.5 adds fixture-sysfs parsing, units/bounds, median smoothing, freshness/suspend,
+threshold/episode boundaries, and fake-process fixed-argv shutdown outcomes in
+`power-core`. Real short MP3 checks extend to all repeat EOF outcomes and EOF/mode/
+manual-skip races. Critical storage checks distinguish drained failures from
+successful tickets, preserve book/session/config order, and verify priority/retry.
+Controller checks cover low-power transitions across all nine screen/work contexts,
+5%→2% promotion, blocking/failing IO, the five-second deadline, charger/unknown/
+stale/recovered cancellation, explicit retry/reopen, and held-A consumption.
+They add 24 six-theme popup/slider/frame/modal BMPs for **69** library screenshots;
+reader smoke retains **44** and the diagnostic retains **36**. Frame checks verify
+the explicit row-477 warning exception and unchanged two-row progress bar.
+
+The 0.5.7 production checks add the confirmed Adam final-command guard (including
+charger insertion during sync), preserve a pending Back bookmark before critical
+shutdown, and ensure the retired Y shortcut is inert. `reader-smoke` uses two
+isolated synthetic-power launches to verify hardware commands stay disabled and
+ordinary logs identify only the current launch. No automated check can invoke
+real system shutdown.
 
 The reader tests
 check EPUB 2/3 metadata and spine order, every numbered text token across page
@@ -245,9 +296,15 @@ platform diagnostic from a current target build, use
 `python3 scripts/package.py --diagnostic`. The accepted historical M1 artifacts
 and test records retain their original versions.
 
-See [DEVICE-TEST-M5.md](DEVICE-TEST-M5.md) for installation and audio acceptance,
+See [DEVICE-TEST-M5.5.md](DEVICE-TEST-M5.5.md) for installation and current evaluation,
 [CONTROLS.md](CONTROLS.md) for controls, and
-[VERIFICATION-M5.md](VERIFICATION-M5.md) for M5 artifact/checks.
+[VERIFICATION-M5.5.md](VERIFICATION-M5.5.md) for M5.5 artifact/checks.
+[POWER-PROFILE-M5.5.md](POWER-PROFILE-M5.5.md) records the observed supply profile,
+confirmed normal shutdown and remaining percentage-calibration observations. The
+OPK includes its hardware-read-only `probe-power.sh` report tool;
+at 2% the guarded device backend requests normal firmware shutdown after save
+preparation. The packaged manual records the confirmed device result.
+[DEVICE-TEST-M5.md](DEVICE-TEST-M5.md) preserves the accepted audio milestone.
 [DEVICE-TEST-M4.md](DEVICE-TEST-M4.md) preserves the accepted interface milestone.
 [DEVICE-TEST-M3.md](DEVICE-TEST-M3.md) preserves the accepted library milestone.
 [DEVICE-TEST.md](DEVICE-TEST.md) records the passed original on-device platform

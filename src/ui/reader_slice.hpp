@@ -7,5 +7,5 @@
 namespace epub {
 void renderReaderSlice(Canvas& canvas, const ReaderResult& page, int theme,
                        const ReaderControls& controls, bool busy, const std::string& status,
-                       const MusicSnapshot& music = {});
+                        const MusicSnapshot& music = {}, const std::string& battery = "BATTERY: UNKNOWN", bool warning = false);
 }

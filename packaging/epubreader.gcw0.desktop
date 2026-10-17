@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=EPUB Reader (M5)
-Comment=RG280V EPUB reader with shuffle music and persistent library
+Name=EPUB Reader (M5.5)
+Comment=RG280V reader with power awareness, repeat controls and grouped library
 Exec=./launch.sh
 Icon=epubreader
 Terminal=false

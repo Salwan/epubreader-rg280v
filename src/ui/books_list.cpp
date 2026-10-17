@@ -18,7 +18,8 @@ void renderApplication(Canvas& canvas, const Controller& app) {
     const auto& config = app.config();
     const auto& p = palettes[static_cast<size_t>(config.preferences.theme)];
     if (app.screen() == Screen::Reader || app.screen() == Screen::Opening) {
-        renderReaderSlice(canvas, app.page, config.preferences.theme, app.readerControls, app.busy(), app.notice.empty() ? app.status : app.notice, app.music());
+        auto music = app.music(); music.repeat = config.musicRepeat;
+        renderReaderSlice(canvas, app.page, config.preferences.theme, app.readerControls, app.busy(), app.notice.empty() ? app.status : app.notice, music, app.batteryLabel(), app.batteryWarning());
         return;
     }
     canvas.clear(p.background);
@@ -42,7 +43,7 @@ void renderApplication(Canvas& canvas, const Controller& app) {
         else {
             const auto& e = app.catalog.entries[static_cast<size_t>(index)];
             line(16, y, e.title.empty() ? baseName(e.path) : e.title, 40);
-            line(264, y, std::to_string(std::max(0, e.progress) / 100) + '%', 4);
+            line(264, y, progressLabel(e.progress), 4);
             if (e.finished) {
                 for (int d = 0; d < 3; ++d) canvas.rect(300 + d, y + 6 + d * 2, 1, 2, p.accent);
                 for (int d = 0; d < 5; ++d) canvas.rect(302 + d, y + 10 - d * 2, 1, 2, p.accent);
@@ -69,6 +70,16 @@ void renderApplication(Canvas& canvas, const Controller& app) {
             line(36, y, rows[i], 44);
         }
         line(24, 298, "A: SELECT   B/X: CLOSE", 45);
+    }
+    if (app.lowPowerModal) {
+        canvas.rect(8, 150, 304, 206, p.panel); canvas.outline(8, 150, 304, 206, 0xe03030);
+        line(18, 166, app.lowPowerTitle, 47);
+        line(18, 196, app.lowPowerSave, 47);
+        line(18, 226, app.lowPowerDetail, 47);
+        line(18, 248, app.lowPowerError, 47);
+        line(18, 280, "A/B: DISMISS AFTER SAVE RESULT", 47);
+        line(18, 302, "X: RETRY A FAILED SAVE", 47);
+        line(18, 324, "SELECT+START: SAVE AND EXIT", 47);
     }
 }
 }

@@ -146,7 +146,7 @@ void invalid(const std::string& root) {
     namespace fs = std::filesystem;
     fs::create_directories(root); std::ofstream(root + "/bad.mp3") << "corrupt"; std::ofstream(root + "/zero.mp3");
     std::ofstream(root + "/removed.mp3");
-    epub::Audio a; epub::Music m(a, root, 8); m.beginBook();
+    epub::Audio a; epub::Music m(a, root, 8); m.setRepeat(epub::RepeatMode::One); m.beginBook();
     wait([&] { m.tick(); return m.snapshot().scan != epub::MusicScan::Scanning; });
     fs::remove(root + "/removed.mp3"); m.toggle();
     wait([&] { m.tick(); return m.snapshot().playback == epub::Playback::Stopped; });
@@ -156,6 +156,46 @@ void invalid(const std::string& root) {
     check(a.status().generation == generation, "Invalid playlist spins");
     m.toggle(); m.tick(); check(m.snapshot().playback == epub::Playback::Stopped, "Explicit retry spins");
 }
+void repeats(const std::string& root, const std::string& fixtures) {
+    using namespace epub;
+    std::filesystem::create_directories(root);
+    for (const auto& name : {"short-mono.mp3", "short-stereo.mp3", "short-48k.mp3"}) std::filesystem::copy_file(fixtures + '/' + name, root + '/' + name);
+    Audio a; Music m(a, root, 24); m.beginBook();
+    wait([&] { m.tick(); return m.snapshot().scan == MusicScan::Ready; });
+    check(m.snapshot().repeat == RepeatMode::All, "Default repeat not ALL");
+    Playlist reference(24); reference.catalog(3);
+    m.setRepeat(RepeatMode::One); m.toggle(); m.tick();
+    const auto first = m.snapshot().track; check(first == *reference.next() + 1, "ONE did not start shuffled");
+    for (int n = 0; n < 2; ++n) {
+        const auto generation = a.status().generation;
+        wait([&] { return a.status().playback == Playback::Stopped; }); m.tick();
+        check(m.snapshot().track == first && a.status().generation != generation, "ONE failed to repeat current at drained EOF");
+    }
+    m.toggle(); m.skip(); m.tick();
+    check(m.snapshot().track == *reference.next() + 1 && m.snapshot().playback == Playback::Paused, "ONE advanced shuffle cursor at EOF or paused skip failed");
+    for (auto mode : {RepeatMode::All, RepeatMode::One, RepeatMode::Stop}) {
+        const auto before = a.status(); m.setRepeat(mode); m.tick();
+        check(a.status().generation == before.generation && a.status().playedFrames == before.playedFrames, "Repeat change restarted/seeks PCM");
+        m.skip(); m.tick(); SDL_Delay(30);
+        check(m.snapshot().track == *reference.next() + 1 && a.status().playedFrames == 0 && m.snapshot().playback == Playback::Paused, "All-mode silent paused manual skip");
+    }
+    m.toggle(); m.tick(); wait([&] { return a.status().playback == Playback::Stopped; });
+    m.setRepeat(RepeatMode::Stop); m.tick();
+    check(m.snapshot().playback == Playback::Stopped && !m.snapshot().track && !a.status().queuedFrames, "STOP natural EOF did not clear state");
+    const auto stopped = a.status().generation; m.skip(); m.tick(); check(a.status().generation == stopped, "Stopped hold advanced playback");
+    m.toggle(); m.tick(); check(m.snapshot().playback == Playback::Playing && m.snapshot().repeat == RepeatMode::Stop, "STOP stopped-start lost mode");
+    // Change the mode after EOF publication, before consumption: current mode wins.
+    wait([&] { return a.status().playback == Playback::Stopped; });
+    const auto pendingTrack = m.snapshot().track; m.setRepeat(RepeatMode::One); m.tick();
+    check(m.snapshot().track == pendingTrack && m.snapshot().playback == Playback::Playing, "Pending EOF ignored latest mode");
+    wait([&] { return a.status().playback == Playback::Stopped; });
+    m.skip(); m.setRepeat(RepeatMode::One); m.tick();
+    check(m.snapshot().track != pendingTrack, "Manual skip lost to pending EOF");
+    // Opposite event order: ONE consumes EOF first, then manual skip advances once.
+    wait([&] { return a.status().playback == Playback::Stopped; }); m.tick();
+    const auto repeated = m.snapshot().track; m.skip(); m.tick(); check(m.snapshot().track != repeated, "EOF-before-skip order repeated current");
+    m.endBook(); m.tick(); check(m.snapshot().repeat == RepeatMode::One && m.snapshot().playback == Playback::Stopped, "Power/end-book stop lost mode or restarted");
+}
 }
 int main(int argc, char** argv) {
     try {
@@ -164,6 +204,7 @@ int main(int argc, char** argv) {
         std::filesystem::remove_all(argv[2]); epub::ensureDirectory(argv[2]);
         playlist(); volume(); discovery(std::string(argv[2]) + "/scan"); backend(argv[1]);
         sessions(std::string(argv[2]) + "/sessions", argv[1]); invalid(std::string(argv[2]) + "/invalid");
+        repeats(std::string(argv[2]) + "/repeats", argv[1]);
         SDL_Quit(); std::cout << "PASS: startup discovery, shuffle sessions, real conversion/drain, pause/skip, EOF races, failure exhaustion\n"; return 0;
     } catch (const std::exception& e) { std::cerr << "FAIL: " << e.what() << '\n'; SDL_Quit(); return 1; }
 }

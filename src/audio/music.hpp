@@ -2,6 +2,7 @@
 #include "audio/audio.hpp"
 #include "audio/catalog.hpp"
 #include "audio/playlist.hpp"
+#include "audio/repeat.hpp"
 
 namespace epub {
 struct MusicSnapshot {
@@ -10,6 +11,7 @@ struct MusicSnapshot {
     bool available = false;
     size_t count = 0, track = 0; // track is a one-based stable catalog index; 0 means none.
     std::string detail;
+    RepeatMode repeat = RepeatMode::All;
     std::string label() const;
 };
 // Main-thread port: controller tests inject a counting fake without SDL audio.
@@ -23,6 +25,7 @@ public:
     virtual void chirp() = 0;
     virtual bool tick() = 0;
     virtual MusicSnapshot snapshot() const = 0;
+    virtual void setRepeat(RepeatMode) {} // Optional counting ports retain source compatibility.
 };
 class Music : public MusicPort {
     Audio& audio_;
@@ -42,5 +45,6 @@ public:
     void chirp() override { audio_.chirp(); }
     bool tick() override;
     MusicSnapshot snapshot() const override { return snapshot_; }
+    void setRepeat(RepeatMode mode) override { if (snapshot_.repeat != mode) { snapshot_.repeat = mode; dirty_ = true; } }
 };
 }
