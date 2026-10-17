@@ -13,6 +13,6 @@ public:
     ReaderEngine(const std::string& assets, const std::string& stateDirectory);
     ~ReaderEngine();
     ReaderResult execute(const ReaderRequest& request, Progress progress = {});
-    void prefetch(); // At most current +/-1, never changes the authoritative anchor.
+    void prefetch(); // At most current +/-1; preserves the exact page and authoritative anchor.
 };
 }

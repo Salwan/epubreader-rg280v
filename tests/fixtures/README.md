@@ -5,6 +5,11 @@
 - `assets/books/prose-epub2.epub`: EPUB 2 with NCX navigation.
 - `assets/books/prose-epub3.epub`: EPUB 3 with an XHTML navigation document.
 - `tests/fixtures/one-page.epub`: a short EPUB 3 boundary specimen.
+- `tests/fixtures/blank-pages.epub`: EPUB 3 with an oversized title block ending
+  in an empty element, followed by the original prose. Its blank second page has
+  a fallback bookmark resolving to page 1, reproducing the prefetch navigation
+  loop fixed in 0.5.8. The page-turn test checks both directions, theme redraw on
+  the blank page, and navigation after a jump.
 - `tests/fixtures/no-spine.epub`: a valid ZIP/container with a malformed package
   for post-detection error recovery.
 

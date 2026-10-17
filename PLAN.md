@@ -22,11 +22,17 @@ Build a single OpenDingux `.opk` application for reading English-prose EPUBs and
 
 `README.md` is the feature baseline. The page-turn controls and jump slider from `BRAINSTORM.md` are included per user confirmation. The user will perform on-device verification once testable OPK artifacts are available.
 
-M5 `0.5.0` is device-accepted. **Milestone 5.5 production `0.5.7` includes confirmed
+M5 `0.5.0` is device-accepted. **Milestone 5.5 production `0.5.8` includes confirmed
 normal shutdown**: battery/low-power, music-repeat, and list-grouping requests in
 `BRAINSTORM.md`, plus SD-card integration, before M6 hardening. The user confirmed
 shutdown from the actual OPK; version 0.5.7 enables that mechanism for critical
 battery handling and removes the temporary experiment. See [the M5.5 plan](docs/PLAN-M5.5.md).
+
+Version **0.5.8** fixes the blank-page navigation loop by preserving the exact
+displayed page during neighbor prefetch. It adds an original blank-page regression
+and verification against the supplied EPUB. **The user verified 0.5.8 on the
+physical RG280V and accepted the fix; the runtime issue is resolved.** See
+[0.5.8 verification and acceptance](docs/VERIFICATION-0.5.8.md).
 
 ## 2. Research findings and technical choices
 
@@ -508,7 +514,7 @@ track information, and host/device audio verification. Target artifact:
 
 ### Milestone 5.5 — Power awareness and reading controls
 
-**Implementation status:** production `0.5.7` from accepted M5
+**Implementation status:** production `0.5.8` from accepted M5
 `0.5.0`, before M6. Power observation/policy, acknowledged low-power transitions,
 repeat controls/persistence, grouping, SD-card state/content defaults, tests and
 delivery are implemented. The file-system request is part of M5.5, with a
@@ -525,7 +531,7 @@ RG350 test/Adam hardware investigation, voltage-derived battery estimates,
 critical checkpoint acknowledgement, threshold/charging policy, conditional
 normal shutdown, repeat-mode EOF semantics, grouping, SD-card integration, and verification.
 
-**Target artifact:** `dist/epubreader-m5.5-0.5.7.opk`.
+**Target artifact:** `dist/epubreader-m5.5-0.5.8.opk`.
 
 **Deliverables:**
 

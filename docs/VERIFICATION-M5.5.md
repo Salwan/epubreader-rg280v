@@ -1,5 +1,8 @@
 # Milestone 5.5 verification — production 0.5.7
 
+**Historical 0.5.7 evidence.** The current 0.5.8 page-turn fix, new artifact and
+regression results are recorded in [0.5.8 verification](VERIFICATION-0.5.8.md).
+
 ## Delivery status
 
 **Version `0.5.7` is the production M5.5 build with confirmed normal shutdown.**

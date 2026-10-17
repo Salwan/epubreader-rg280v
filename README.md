@@ -64,4 +64,5 @@ During book reading:
 
 ## AI Usage Disclaimer
 
-While this app was designed by me (down to individual pixels in some cases) and every feature/milestone was verified directly on the physical device. AI wrote the docs, build files, all of the code, and test suites.
+While I iteratively designed this app (down to individual pixels in some cases). AI wrote the docs, build files, all of the code, and test suites.
+

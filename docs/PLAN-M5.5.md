@@ -1,6 +1,6 @@
 # Milestone 5.5 — Power awareness and reading controls
 
-**Status:** production `0.5.7`, following device-accepted M5
+**Status:** production `0.5.8`, following device-accepted M5
 `0.5.0` and before M6 hardening. See [verification](VERIFICATION-M5.5.md) and
 [device checklist](DEVICE-TEST-M5.5.md). User probes confirm unplugged/connected
 supply paths/units/design bounds and the USB `online=0/1` signal. The user confirmed
@@ -11,8 +11,13 @@ comparison remains an evaluation item, not an invented charge-state measurement.
 See [power capability notes](POWER-PROFILE-M5.5.md) and
 [the accepted shutdown record](VERIFICATION-SHUTDOWN-M5.5.md).
 
-**Target version/artifact:** `0.5.7`, `dist/epubreader-m5.5-0.5.7.opk`, checksum,
+**Target version/artifact:** `0.5.8`, `dist/epubreader-m5.5-0.5.8.opk`, checksum,
 updated controls, host verification, and an RG280V / Adam v2.1 device checklist.
+
+The 0.5.8 maintenance follow-up fixes the reported blank-page navigation loop
+with exact-page prefetch restoration and an original regression fixture.
+**The user verified the fix on the physical RG280V and accepted 0.5.8; this runtime
+issue is resolved.** See [0.5.8 verification and acceptance](VERIFICATION-0.5.8.md).
 
 ## 1. Outcome and baseline
 
@@ -34,7 +39,7 @@ facade with generation-tagged terminal events. That M5 baseline has no battery
 observer, low-power policy, system-poweroff adapter, or repeat preference.
 
 The behaviors below are implementation decisions for M5.5. Existing M5 controls
-and build documentation now describe the `0.5.7` production build; historical M5
+and build documentation now describe the `0.5.8` production build; historical M5
 acceptance/verification records retain the accepted `0.5.0` baseline.
 
 ## 2. Hardware findings and first implementation step
